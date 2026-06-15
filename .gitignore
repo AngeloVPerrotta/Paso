@@ -11,8 +11,5 @@
 .DS_Store
 Thumbs.db
 
-# Screenshots de desarrollo (shot.gd se trackea; su salida no)
-shot.png
-shot.png.import
-shot_*.png
-shot_*.png.import
+# Screenshots de desarrollo: shot.gd se trackea; su salida va a shots/ (ignorada)
+/shots/

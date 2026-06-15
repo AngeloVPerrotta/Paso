@@ -123,6 +123,10 @@ var _btn_continuar: Button
 var _inicio_robot: Robot
 var _arrancado := false                 # true tras el boot: a partir de ahi guardamos "ultimo nivel"
 
+# --- Panel "Ver en C#" ---
+var csharp_capa: Control
+var csharp_texto: TextEdit
+
 # --- Tutorial ---
 var tutorial_capa: Control
 var _spotlight                          # Spotlight (inner class)
@@ -374,6 +378,8 @@ func _construir_ui() -> void:
 	tutorial_capa.visible = false
 	add_child(tutorial_capa)
 
+	_construir_csharp()
+
 	timer = Timer.new()
 	timer.wait_time = VELOCIDADES[vel_idx].paso
 	timer.one_shot = false
@@ -487,6 +493,11 @@ func _construir_controles() -> Control:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fila.add_child(sp)
 
+	var b_csharp := _boton_accion("‹/› Ver en C#", false)
+	b_csharp.tooltip_text = "Mirá tu solución como código C# real."
+	b_csharp.pressed.connect(_toggle_csharp)
+	fila.add_child(b_csharp)
+
 	var b_validar := _boton_accion("✓ Validar", true)
 	b_validar.pressed.connect(_on_validar_pressed)
 	fila.add_child(b_validar)
@@ -584,6 +595,89 @@ func _continuar() -> void:
 	inicio_capa.visible = false
 	var idx := orden.find(Puntajes.ultimo_nivel())
 	_cargar_indice(idx if idx >= 0 else 0)
+
+
+# ---------------------------------------------------------------------------
+# Panel "Ver en C#": muestra el programa actual como C# real (Csharp.generar).
+# Cara de editor (mono, cálido), abre/cierra. El modelo sale de programa_modelo().
+# ---------------------------------------------------------------------------
+func _construir_csharp() -> void:
+	csharp_capa = Control.new()
+	csharp_capa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	csharp_capa.mouse_filter = Control.MOUSE_FILTER_STOP
+	csharp_capa.visible = false
+	add_child(csharp_capa)
+
+	# Fondo tenue; clic afuera cierra.
+	var back := ColorRect.new()
+	back.color = Color(0.12, 0.11, 0.10, 0.42)
+	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	back.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed:
+			_cerrar_csharp())
+	csharp_capa.add_child(back)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	csharp_capa.add_child(center)
+
+	var card := _panel(COL_PANEL)
+	card.custom_minimum_size = Vector2(680, 540)
+	center.add_child(card)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	card.add_child(v)
+
+	var hrow := HBoxContainer.new()
+	var titulo := Label.new()
+	titulo.text = "Tu solución en C#"
+	titulo.add_theme_font_override("font", fuente_sans)
+	titulo.add_theme_font_size_override("font_size", 20)
+	titulo.add_theme_color_override("font_color", COL_TEXTO)
+	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hrow.add_child(titulo)
+	var cerrar := _boton_accion("✕", false)
+	cerrar.custom_minimum_size = Vector2(40, 36)
+	cerrar.pressed.connect(_cerrar_csharp)
+	hrow.add_child(cerrar)
+	v.add_child(hrow)
+
+	csharp_texto = TextEdit.new()
+	csharp_texto.editable = false
+	csharp_texto.add_theme_font_override("font", fuente_mono)
+	csharp_texto.add_theme_font_size_override("font_size", 15)
+	csharp_texto.add_theme_color_override("font_color", COL_TEXTO)
+	csharp_texto.add_theme_color_override("font_readonly_color", COL_TEXTO)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = COL_FONDO
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(14)
+	sb.border_color = COL_CELDA_BORDE
+	sb.set_border_width_all(1)
+	csharp_texto.add_theme_stylebox_override("normal", sb)
+	csharp_texto.add_theme_stylebox_override("read_only", sb)
+	csharp_texto.add_theme_stylebox_override("focus", sb)
+	csharp_texto.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	csharp_texto.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	csharp_texto.custom_minimum_size = Vector2(648, 448)
+	v.add_child(csharp_texto)
+
+
+func _toggle_csharp() -> void:
+	if csharp_capa.visible:
+		_cerrar_csharp()
+		return
+	csharp_texto.text = Csharp.generar(programa_modelo())
+	csharp_capa.visible = true
+	csharp_capa.move_to_front()
+	if sfx:
+		sfx.click()
+
+
+func _cerrar_csharp() -> void:
+	csharp_capa.visible = false
 
 
 # ---------------------------------------------------------------------------
