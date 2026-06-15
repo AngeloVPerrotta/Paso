@@ -94,6 +94,13 @@ var capa_anim: Control
 var robot: Robot
 var sfx: Sfx
 var _tween_beat: Tween
+var escenario_col: VBoxContainer       # columna derecha (para ubicar la celebracion)
+
+# --- Pantalla inicial ---
+var inicio_capa: Control
+var _btn_continuar: Button
+var _inicio_robot: Robot
+var _arrancado := false                 # true tras el boot: a partir de ahi guardamos "ultimo nivel"
 
 # --- Tutorial ---
 var tutorial_capa: Control
@@ -117,7 +124,10 @@ func _ready() -> void:
 
 	orden = Niveles.orden()
 	_construir_ui()
+	_construir_inicio()
 	_cargar_indice(0)
+	_mostrar_inicio()
+	_arrancado = true
 
 
 func _cargar_nivel(id: String) -> void:
@@ -139,8 +149,11 @@ func _cargar_indice(idx: int) -> void:
 	_cargar_nivel(orden[nivel_idx])
 	if nivel == null:
 		return
+	if _arrancado:
+		Puntajes.set_ultimo(orden[nivel_idx])   # para "Continuar" (no en el boot)
 	_repintar_paleta()
 	_repintar_programa()
+	_construir_memoria()
 	_repintar_cabecera()
 	_repintar_progreso()
 	_reset_corrida()
@@ -242,6 +255,11 @@ func _construir_ui() -> void:
 	var nav := HBoxContainer.new()
 	nav.add_theme_constant_override("separation", 12)
 	raiz.add_child(nav)
+
+	var b_inicio := _boton_nav("⌂")
+	b_inicio.tooltip_text = "Volver al inicio"
+	b_inicio.pressed.connect(_mostrar_inicio)
+	nav.add_child(b_inicio)
 
 	var b_prev := _boton_nav("◀")
 	b_prev.pressed.connect(_on_prev)
@@ -361,6 +379,7 @@ func _construir_escenario() -> Control:
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 16)
+	escenario_col = col
 
 	# Robot compañero arriba a la derecha del escenario.
 	var fila_top := HBoxContainer.new()
@@ -430,6 +449,98 @@ func _construir_controles() -> Control:
 	fila.add_child(b_validar)
 
 	return fila
+
+
+# ---------------------------------------------------------------------------
+# Pantalla inicial: calma, misma onda cálida. Nombre + tagline + Jugar/Continuar
+# + robot. Es un overlay encima del juego (el juego vive detrás); se oculta al jugar.
+# ---------------------------------------------------------------------------
+func _construir_inicio() -> void:
+	inicio_capa = Control.new()
+	inicio_capa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inicio_capa.mouse_filter = Control.MOUSE_FILTER_STOP   # tapa el juego de atrás
+	add_child(inicio_capa)
+
+	var fondo := ColorRect.new()
+	fondo.color = COL_FONDO
+	fondo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inicio_capa.add_child(fondo)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inicio_capa.add_child(center)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	center.add_child(v)
+
+	_inicio_robot = Robot.new()
+	_inicio_robot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(_inicio_robot)
+
+	var titulo := Label.new()
+	titulo.text = "Paso"
+	titulo.add_theme_font_override("font", fuente_sans)
+	titulo.add_theme_font_size_override("font_size", 72)
+	titulo.add_theme_color_override("font_color", COL_TEXTO)
+	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titulo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(titulo)
+
+	var tag := Label.new()
+	tag.text = "Un juego de lógica: programá la solución, paso a paso."
+	tag.add_theme_font_override("font", fuente_sans)
+	tag.add_theme_font_size_override("font_size", 18)
+	tag.add_theme_color_override("font_color", COL_TENUE)
+	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	tag.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(tag)
+
+	var esp := Control.new()
+	esp.custom_minimum_size = Vector2(0, 18)
+	v.add_child(esp)
+
+	var b_jugar := _boton_accion("▶  Jugar", true)
+	b_jugar.custom_minimum_size = Vector2(240, 48)
+	b_jugar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	b_jugar.pressed.connect(_jugar)
+	v.add_child(b_jugar)
+
+	_btn_continuar = _boton_accion("Continuar", false)
+	_btn_continuar.custom_minimum_size = Vector2(240, 44)
+	_btn_continuar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_btn_continuar.pressed.connect(_continuar)
+	v.add_child(_btn_continuar)
+
+
+func _mostrar_inicio() -> void:
+	_detener()
+	_cerrar_tutorial()
+	if _btn_continuar:
+		var u := Puntajes.ultimo_nivel()
+		var idx := orden.find(u)
+		if idx >= 0:
+			_btn_continuar.visible = true
+			_btn_continuar.text = "Continuar  ·  nivel %d" % (idx + 1)
+		else:
+			_btn_continuar.visible = false
+	if _inicio_robot:
+		_inicio_robot.set_mood("feliz")
+	inicio_capa.visible = true
+	inicio_capa.move_to_front()
+
+
+func _jugar() -> void:
+	inicio_capa.visible = false
+	_cargar_indice(0)
+
+
+func _continuar() -> void:
+	inicio_capa.visible = false
+	var idx := orden.find(Puntajes.ultimo_nivel())
+	_cargar_indice(idx if idx >= 0 else 0)
 
 
 # ---------------------------------------------------------------------------
@@ -694,7 +805,7 @@ func _on_validar_pressed() -> void:
 				sfx.record()
 			else:
 				sfx.win()
-		_celebrar(r.score.instrucciones, es_par, es_record)
+		_celebrar(r.score.instrucciones, r.score.pasos, es_par, es_record)
 	else:
 		validacion_label.text = "✗  %s" % _mensaje_falla(r)
 		validacion_label.add_theme_color_override("font_color", COL_ERROR)
@@ -763,7 +874,7 @@ func _reset_corrida() -> void:
 func redibujar() -> void:
 	mano_label.text = _str_valor(estado.mano)
 
-	_pintar_memoria(estado.slots)
+	_actualizar_memoria(estado.slots)
 	_pintar_fila(entrada_box, estado.entrada, false)
 	_pintar_fila(salida_box, estado.salida, false)
 
@@ -802,25 +913,34 @@ func redibujar() -> void:
 		estado_label.add_theme_color_override("font_color", COL_TENUE)
 
 
-# Memoria tipada: cada slot es una columna "int memoriaN" + su celda.
-func _pintar_memoria(valores: Array) -> void:
+# Memoria tipada: se construye UNA vez por nivel (cada slot = columna "int memoriaN"
+# + su celda). Asi las celdas tienen un rect estable y los valores que vuelan
+# aterrizan en la CASILLA, no encima de la etiqueta. redibujar solo actualiza texto.
+func _construir_memoria() -> void:
 	slot_celdas.clear()
 	for hijo in slots_box.get_children():
 		hijo.queue_free()
-	if valores.is_empty():
+	if cantidad_slots <= 0:
 		slots_box.add_child(_etiqueta("(este nivel no usa memoria)", 13, COL_TENUE))
 		return
-	for i in valores.size():
+	for i in cantidad_slots:
 		var colm := VBoxContainer.new()
 		colm.add_theme_constant_override("separation", 4)
+		colm.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		var cap := _etiqueta("int memoria%d" % i, 12, COL_TENUE)
 		cap.add_theme_font_override("font", fuente_mono)
+		cap.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		colm.add_child(cap)
 		var celda := _celda(COL_CELDA)
-		celda.get_child(0).text = _str_valor(valores[i])
 		colm.add_child(celda)
 		slots_box.add_child(colm)
 		slot_celdas.append(celda)
+
+
+func _actualizar_memoria(valores: Array) -> void:
+	for i in slot_celdas.size():
+		var v = valores[i] if i < valores.size() else null
+		slot_celdas[i].get_child(0).text = _str_valor(v)
 
 
 func _pintar_fila(box: HBoxContainer, valores: Array, mostrar_vacias: bool) -> void:
@@ -897,14 +1017,18 @@ func _volar(texto: String, desde: Control, hacia: Control, color: Color, dur: fl
 	if r_desde.size == Vector2.ZERO or r_hacia.size == Vector2.ZERO:
 		return  # layout sin resolver (tests headless): no animamos
 
+	var fsize := 24
 	var flotante := Label.new()
 	flotante.text = texto
+	flotante.mouse_filter = Control.MOUSE_FILTER_IGNORE   # cosmetico: nunca come clicks
 	flotante.add_theme_font_override("font", fuente_mono)
-	flotante.add_theme_font_size_override("font_size", 24)
+	flotante.add_theme_font_size_override("font_size", fsize)
 	flotante.add_theme_color_override("font_color", color)
-	flotante.pivot_offset = Vector2(8, 12)
-	var p0 := r_desde.position + r_desde.size * 0.5 - Vector2(8, 12)
-	var p1 := r_hacia.position + r_hacia.size * 0.5 - Vector2(8, 12)
+	# Centramos el glifo sobre el CENTRO de cada casilla (no sobre su etiqueta).
+	var medio := fuente_mono.get_string_size(texto, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize) * 0.5
+	flotante.pivot_offset = medio
+	var p0 := r_desde.position + r_desde.size * 0.5 - medio
+	var p1 := r_hacia.position + r_hacia.size * 0.5 - medio
 	flotante.position = p0
 	flotante.scale = Vector2(0.6, 0.6)
 	capa_anim.add_child(flotante)
@@ -950,44 +1074,101 @@ func _brillo(celda: Panel, dur: float) -> void:
 	_pop(celda, dur)
 
 
-# Celebracion al pasar: onda suave + conteo de puntaje (+★ / ¡récord!).
-func _celebrar(score_instr: int, es_par: bool, es_record: bool) -> void:
+# Celebracion al pasar: banner PROLIJO en espacio libre (sobre el escenario), no
+# tapa el programa ni es sobredimensionado. Trae onda suave LOCALIZADA + conteo de
+# puntaje + ★/récord, y es descartable (click) ademas de auto-desvanecerse.
+func _celebrar(score_instr: int, score_pasos: int, es_par: bool, es_record: bool) -> void:
 	if capa_anim == null or capa_anim.get_global_rect().size == Vector2.ZERO:
 		return
-	var centro := capa_anim.size * 0.5
+	# Centro del banner: arriba del escenario (espacio libre a la derecha), nunca
+	# sobre el panel del programa. Si no hay rect (headless), salimos.
+	var area := escenario_col.get_global_rect() if escenario_col else Rect2()
+	if area.size == Vector2.ZERO:
+		return
+	var capa_rect := capa_anim.get_global_rect()
+	var ancho := 228.0
+	# Espacio libre: franja DERECHA del escenario, DEBAJO del robot. Asi no pisa ni
+	# al robot (arriba a la derecha) ni las etiquetas de la izquierda (en la mano /
+	# memoriaN), que quedan a la izquierda de esta franja.
+	var local := area.position - capa_rect.position
+	var centro := local + Vector2(area.size.x - ancho * 0.5 - 4.0, 215.0)
 
-	# Onda(s) suaves expandiendose desde el centro.
+	# Onda(s) localizadas alrededor del banner (radio chico).
 	for k in (3 if es_record else 2):
 		var o := Onda.new()
 		o.color = COL_ACENTO
 		o.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		o.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		capa_anim.add_child(o)
-		o.lanzar(centro, 60.0 + k * 70.0, 0.9 + k * 0.12)
+		o.lanzar(centro, 36.0 + k * 30.0, 0.85 + k * 0.12)
 
-	# Cartel central: conteo del puntaje + estrella / récord.
-	var cartel := Label.new()
-	cartel.add_theme_font_override("font", fuente_sans)
-	cartel.add_theme_font_size_override("font_size", 40)
-	cartel.add_theme_color_override("font_color", COL_ACENTO)
-	cartel.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cartel.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	cartel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	cartel.offset_top = -60.0   # un toque por encima del centro
-	capa_anim.add_child(cartel)
+	# Banner: tarjeta compacta con titular + conteo + hint para cerrar.
+	var banner := _panel(COL_PANEL)
+	banner.custom_minimum_size = Vector2(ancho, 0)
+	banner.mouse_filter = Control.MOUSE_FILTER_STOP   # click = descartar
 
-	var sufijo := ""
-	if es_record:
-		sufijo = "  🎉"
-	elif es_par:
-		sufijo = "  ★"
-	var t := create_tween()
+	var bv := VBoxContainer.new()
+	bv.add_theme_constant_override("separation", 4)
+	bv.mouse_filter = Control.MOUSE_FILTER_IGNORE        # el click lo cacha el banner entero
+	banner.add_child(bv)
+
+	var titular := Label.new()
+	titular.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	titular.add_theme_font_override("font", fuente_sans)
+	titular.add_theme_font_size_override("font_size", 22)
+	titular.add_theme_color_override("font_color", COL_ACENTO)
+	titular.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	titular.text = "🎉 ¡Nuevo récord!" if es_record else ("★ ¡Objetivo!" if es_par else "✓ ¡Pasó!")
+	bv.add_child(titular)
+
+	var sub := Label.new()
+	sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sub.add_theme_font_override("font", fuente_mono)
+	sub.add_theme_font_size_override("font_size", 16)
+	sub.add_theme_color_override("font_color", COL_TEXTO)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bv.add_child(sub)
+
+	var hint := Label.new()
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint.add_theme_font_override("font", fuente_sans)
+	hint.add_theme_font_size_override("font_size", 11)
+	hint.add_theme_color_override("font_color", COL_TENUE)
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.text = "tocá para cerrar"
+	bv.add_child(hint)
+
+	capa_anim.add_child(banner)
+	# Posicionar centrado horizontalmente sobre el escenario, tras un frame de layout.
+	banner.position = centro - Vector2(ancho * 0.5, 40.0)
+	banner.pivot_offset = Vector2(ancho * 0.5, 40.0)
+	banner.scale = Vector2(0.85, 0.85)
+
+	var entra := create_tween()
+	entra.tween_property(banner, "scale", Vector2.ONE, 0.28).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
 	# Conteo del puntaje hacia arriba (dopamina barata).
-	t.tween_method(func(v): cartel.text = "%d instrucciones%s" % [int(v), sufijo], 0.0, float(score_instr), 0.5)\
-		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	t.tween_interval(0.5)
-	t.tween_property(cartel, "modulate:a", 0.0, 0.5)
-	t.tween_callback(cartel.queue_free)
+	var cuenta := create_tween()
+	cuenta.tween_method(
+		func(v): sub.text = "%d instrucciones\n%d pasos" % [int(v), score_pasos],
+		0.0, float(score_instr), 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+	# Descartar: por click o auto a los ~3.2s.
+	banner.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed:
+			_descartar_banner(banner))
+	var auto := create_tween()
+	auto.tween_interval(3.2)
+	auto.tween_callback(func(): _descartar_banner(banner))
+
+
+func _descartar_banner(banner: Control) -> void:
+	if not is_instance_valid(banner) or banner.has_meta("cerrando"):
+		return
+	banner.set_meta("cerrando", true)
+	var t := create_tween()
+	t.tween_property(banner, "modulate:a", 0.0, 0.25)
+	t.tween_callback(func(): if is_instance_valid(banner): banner.queue_free())
 
 
 # ---------------------------------------------------------------------------
@@ -1066,6 +1247,8 @@ func _puede_tutorial() -> bool:
 func _quizas_tutorial() -> void:
 	if not _puede_tutorial() or nivel == null:
 		return
+	if inicio_capa and inicio_capa.visible:
+		return                                   # no arrancamos el tutorial bajo la pantalla inicial
 	if nivel_idx > 1:
 		return
 	if Puntajes.flag("tuto_" + nivel.id):
@@ -1079,11 +1262,11 @@ func _quizas_tutorial() -> void:
 func _pasos_tutorial(id: String) -> Array:
 	# Cada paso: {texto, objetivo} donde objetivo es un Callable -> Control (o null).
 	var p := [
-		{"texto": "¡Hola! Soy tu copiloto 🤖. Te muestro cómo se juega — tocá « Siguiente ».",
+		{"texto": "¡Hola! Soy tu copiloto. Te muestro cómo se juega — tocá « Siguiente ».",
 			"objetivo": func(): return null},
 		{"texto": "Esto es lo que ENTRA: una fila de números (int). Hay que procesarlos y sacarlos.",
 			"objetivo": func(): return entrada_box},
-		{"texto": "Estas son tus instrucciones. Tocá « agarrá » para sumarla a tu programa.",
+		{"texto": "Estas son tus instrucciones. Tocá « agarrá » para agregarla a tu programa.",
 			"objetivo": func(): return paleta_box},
 		{"texto": "Tu programa se arma acá, línea por línea — como código.",
 			"objetivo": func(): return programa_vbox},
@@ -1094,9 +1277,9 @@ func _pasos_tutorial(id: String) -> Array:
 	]
 	if id == "b2_invertir_par":
 		p = [
-			{"texto": "Nuevo: la MEMORIA. Podés « guardá » un valor y « recuperá »lo después.",
+			{"texto": "Nuevo: la MEMORIA. Guardás un valor con « guardá » y lo traés de vuelta con « recuperá ».",
 				"objetivo": func(): return slots_box},
-			{"texto": "Pista: para invertir, guardá el primero, sacá el segundo, y recién después soltá el guardado.",
+			{"texto": "Pista: para invertir, guardá el primero, sacá el segundo y recién ahí soltá el guardado.",
 				"objetivo": func(): return programa_vbox},
 		]
 	return p

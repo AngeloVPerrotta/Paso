@@ -61,3 +61,15 @@ static func set_flag(nombre: String, valor: bool) -> void:
 	var cfg := _cargar()
 	cfg.set_value(SEC_FLAGS, nombre, valor)
 	cfg.save(RUTA)
+
+
+# --- Ultimo nivel jugado (para "Continuar") ---
+static func ultimo_nivel() -> String:
+	var cfg := _cargar()
+	return str(cfg.get_value(SEC_FLAGS, "ultimo", ""))
+
+
+static func set_ultimo(id: String) -> void:
+	var cfg := _cargar()
+	cfg.set_value(SEC_FLAGS, "ultimo", id)
+	cfg.save(RUTA)

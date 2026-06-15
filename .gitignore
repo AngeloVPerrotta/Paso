@@ -4,7 +4,7 @@
 *.translation
 
 # Exports
-export_presets.cfg
+# export_presets.cfg SE trackea (config de build reproducible, sin secretos).
 /builds/
 
 # OS
