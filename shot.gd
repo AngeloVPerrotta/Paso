@@ -38,7 +38,13 @@ func _shot_tutorial() -> void:
 	escena.inicio_capa.visible = false
 	escena._cargar_indice(escena.orden.find("b1_eco"))
 	await _esperar(14)
-	await _guardar("shot_tutorial.png")
+	await _guardar("shot_tutorial.png")            # paso intro
+	# Avanzar hasta el paso interactivo "tocá agarrá" (hueco sobre la paleta).
+	escena._tutorial_siguiente()
+	await _esperar(6)
+	escena._tutorial_siguiente()
+	await _esperar(12)
+	await _guardar("shot_tutorial_agarra.png")     # spotlight con hueco interactivo
 	escena._saltar_tutorial()
 	await _esperar(2)
 

@@ -26,6 +26,27 @@ const OP_LABEL := {
 	"ETIQUETA": "etiqueta",
 }
 
+# Ayuda (tooltip) de cada instrucción: una línea clara de qué hace.
+const OP_AYUDA := {
+	"TOMAR": "agarrá: toma el próximo valor de la entrada y lo deja en la mano.",
+	"SOLTAR": "soltá: deja el valor de la mano en la salida (y la mano queda vacía).",
+	"COPIAR": "recuperá: copia una memoria a la mano (la memoria no cambia).",
+	"GUARDAR": "guardá: copia la mano a una memoria (la mano no cambia).",
+	"SUMAR": "sumá: le suma una memoria al valor que tenés en la mano.",
+	"RESTAR": "restá: le resta una memoria al valor que tenés en la mano.",
+	"SALTAR": "saltá a: salta a una etiqueta (sirve para repetir = loop).",
+	"SALTAR_SI_CERO": "si es cero saltá a: si la mano vale 0, salta a una etiqueta; si no, sigue.",
+	"ETIQUETA": "etiqueta: marca un punto del programa para poder saltar ahí.",
+}
+
+# Leyenda de cada zona del escenario (tooltip explicativo).
+const ZONA_AYUDA := {
+	"mano": "La mano: sostenés UN valor por vez (int). Casi todo pasa por acá.",
+	"memoria": "Memoria: cajitas tipadas (int) para guardar valores y recuperarlos después.",
+	"entran": "Entran: la fila de valores que recibís, en orden. Cuando se vacía, el programa termina.",
+	"salen": "Salen: lo que vas soltando. Para resolver, tiene que coincidir con lo pedido.",
+}
+
 # --- Banco de niveles ---
 var orden: Array = []
 var nivel_idx := 0
@@ -110,6 +131,7 @@ var _tuto_i := 0
 var _tuto_globo: PanelContainer
 var _tuto_txt: Label
 var _tuto_btn_sig: Button
+var _tuto_marca_visto := true           # true: al terminar marca el nivel como "ya visto"
 
 
 func _ready() -> void:
@@ -180,11 +202,23 @@ func _repintar_paleta() -> void:
 	for op in nivel.instrucciones_permitidas:
 		var b := Button.new()
 		b.text = OP_LABEL.get(op, op)
+		b.tooltip_text = OP_AYUDA.get(op, "")     # al pasar el mouse: qué hace
 		b.focus_mode = Control.FOCUS_NONE
 		b.add_theme_font_override("font", fuente_sans)
 		_estilo_boton_paleta(b)
 		b.pressed.connect(func(): agregar_op(op))
 		paleta_box.add_child(b)
+
+
+# Devuelve el botón de la paleta para un op (los botones van en el orden de
+# instrucciones_permitidas). Lo usa el tutorial interactivo para apuntar el foco.
+func _boton_paleta(op: String) -> Control:
+	if nivel == null:
+		return null
+	var idx: int = nivel.instrucciones_permitidas.find(op)
+	if idx >= 0 and idx < paleta_box.get_child_count():
+		return paleta_box.get_child(idx)
+	return null
 
 
 func _repintar_cabecera() -> void:
@@ -331,9 +365,12 @@ func _construir_ui() -> void:
 	capa_anim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(capa_anim)
 
-	# Capa de tutorial: por encima de todo (se llena bajo demanda).
+	# Capa de tutorial: por encima de todo (se llena bajo demanda). IGNORE para que,
+	# en pasos interactivos, los clics dentro del "hueco" del spotlight lleguen al
+	# botón real de abajo (el spotlight decide qué bloquear via _has_point).
 	tutorial_capa = Control.new()
 	tutorial_capa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tutorial_capa.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tutorial_capa.visible = false
 	add_child(tutorial_capa)
 
@@ -391,8 +428,9 @@ func _construir_escenario() -> Control:
 	col.add_child(fila_top)
 
 	# MANO.
-	col.add_child(_etiqueta("en la mano  ·  int", 13, COL_TENUE, true))
+	col.add_child(_zona_label("en la mano  ·  int", ZONA_AYUDA.mano))
 	mano_celda = _celda(COL_CELDA)
+	mano_celda.tooltip_text = ZONA_AYUDA.mano
 	mano_label = mano_celda.get_child(0)
 	mano_label.add_theme_color_override("font_color", COL_MANO)
 	var fila_mano := HBoxContainer.new()
@@ -400,19 +438,19 @@ func _construir_escenario() -> Control:
 	col.add_child(fila_mano)
 
 	# MEMORIA (slots tipados).
-	col.add_child(_etiqueta("memoria", 13, COL_TENUE, true))
+	col.add_child(_zona_label("memoria", ZONA_AYUDA.memoria))
 	slots_box = HBoxContainer.new()
 	slots_box.add_theme_constant_override("separation", 10)
 	col.add_child(slots_box)
 
 	# ENTRAN.
-	col.add_child(_etiqueta("entran  ·  int", 13, COL_TENUE, true))
+	col.add_child(_zona_label("entran  ·  int", ZONA_AYUDA.entran))
 	entrada_box = HBoxContainer.new()
 	entrada_box.add_theme_constant_override("separation", 8)
 	col.add_child(entrada_box)
 
 	# SALEN.
-	col.add_child(_etiqueta("salen  ·  int", 13, COL_TENUE, true))
+	col.add_child(_zona_label("salen  ·  int", ZONA_AYUDA.salen))
 	salida_box = HBoxContainer.new()
 	salida_box.add_theme_constant_override("separation", 8)
 	col.add_child(salida_box)
@@ -439,6 +477,11 @@ func _construir_controles() -> Control:
 	boton_vel = _boton_accion("⏩ %s" % VELOCIDADES[vel_idx].nombre, false)
 	boton_vel.pressed.connect(_on_vel_pressed)
 	fila.add_child(boton_vel)
+
+	var b_ayuda := _boton_accion("? ¿Cómo se juega?", false)
+	b_ayuda.tooltip_text = "Repasá cómo se juega cuando quieras."
+	b_ayuda.pressed.connect(_abrir_ayuda)
+	fila.add_child(b_ayuda)
 
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -562,6 +605,7 @@ func agregar_op(op: String) -> void:
 	_reset_corrida()
 	if sfx:
 		sfx.colocar()
+	_tutorial_evento("op:" + op)
 
 
 func mover_linea(i: int, delta: int) -> void:
@@ -839,6 +883,7 @@ func _correr() -> void:
 	if robot:
 		robot.set_mood("pensando")
 	timer.start()
+	_tutorial_evento("run")
 
 
 func _detener() -> void:
@@ -1244,6 +1289,7 @@ func _puede_tutorial() -> bool:
 	return DisplayServer.get_name() != "headless"
 
 
+# Tutorial automático la primera vez (niveles 1-2). El nivel 1 es INTERACTIVO.
 func _quizas_tutorial() -> void:
 	if not _puede_tutorial() or nivel == null:
 		return
@@ -1253,36 +1299,81 @@ func _quizas_tutorial() -> void:
 		return
 	if Puntajes.flag("tuto_" + nivel.id):
 		return
-	# Esperamos a que el layout resuelva los rects antes de apuntar el spotlight.
 	_tuto_pasos = _pasos_tutorial(nivel.id)
 	_tuto_i = 0
+	_tuto_marca_visto = true                     # primera vez: al terminar, marcar visto
 	call_deferred("_tutorial_arrancar")
 
 
+# Botón "¿Cómo se juega?": leyenda repasable en cualquier momento (no marca visto).
+func _abrir_ayuda() -> void:
+	if not _puede_tutorial():
+		return
+	_cerrar_tutorial()
+	_tuto_pasos = _pasos_legenda()
+	_tuto_i = 0
+	_tuto_marca_visto = false
+	call_deferred("_tutorial_arrancar")
+
+
+# Pasos por nivel (primera vez). Cada paso:
+#   {texto, objetivo: Callable->Control|null, espera?: "op:X"|"run", sin_velo?: bool}
+# Si trae `espera`, el paso es INTERACTIVO: se oculta "Siguiente" y avanza solo
+# cuando el jugador hace esa acción (el spotlight deja pasar el clic al objetivo).
 func _pasos_tutorial(id: String) -> Array:
-	# Cada paso: {texto, objetivo} donde objetivo es un Callable -> Control (o null).
-	var p := [
-		{"texto": "¡Hola! Soy tu copiloto. Te muestro cómo se juega — tocá « Siguiente ».",
-			"objetivo": func(): return null},
-		{"texto": "Esto es lo que ENTRA: una fila de números (int). Hay que procesarlos y sacarlos.",
-			"objetivo": func(): return entrada_box},
-		{"texto": "Estas son tus instrucciones. Tocá « agarrá » para agregarla a tu programa.",
-			"objetivo": func(): return paleta_box},
-		{"texto": "Tu programa se arma acá, línea por línea — como código.",
-			"objetivo": func(): return programa_vbox},
-		{"texto": "Mientras corre, mirá « en la mano » (sostenés un valor), « memoria » y « salen ».",
-			"objetivo": func(): return mano_celda},
-		{"texto": "Tocá ▶ Correr para verlo en acción, o ⏯ Paso para ir de a uno. ¡Probá!",
-			"objetivo": func(): return boton_run},
-	]
 	if id == "b2_invertir_par":
-		p = [
+		return [
 			{"texto": "Nuevo: la MEMORIA. Guardás un valor con « guardá » y lo traés de vuelta con « recuperá ».",
 				"objetivo": func(): return slots_box},
 			{"texto": "Pista: para invertir, guardá el primero, sacá el segundo y recién ahí soltá el guardado.",
 				"objetivo": func(): return programa_vbox},
 		]
-	return p
+	# Nivel 1 (b1_eco u otro): tutorial DE LA MANO, lo hacés vos.
+	# (En cada dict, la lambda `objetivo` va ÚLTIMA: un lambda de una línea seguido
+	#  de otra clave confunde al parser.)
+	return [
+		{"texto": "¡Hola! Te enseño a jugar y lo hacés vos. Tocá « Siguiente ».",
+			"objetivo": func(): return null},
+		{"texto": "Mirá: « entran » tres números. Hay que sacarlos en orden, sin cambiarlos.",
+			"objetivo": func(): return entrada_box},
+		{"texto": "Probá vos: tocá « agarrá » para tomar el primero y dejarlo en la mano.",
+			"espera": "op:TOMAR", "objetivo": func(): return _boton_paleta("TOMAR")},
+		{"texto": "¡Bien! Ahora tocá « soltá » para mandarlo a « salen ».",
+			"espera": "op:SOLTAR", "objetivo": func(): return _boton_paleta("SOLTAR")},
+		{"texto": "Ya tenés dos pasos de programa. Tocá « ▶ Correr » y mirá al robot.",
+			"espera": "run", "objetivo": func(): return boton_run},
+		{"texto": "¿Viste el viaje entrada → mano → salida? Repetí agarrá/soltá hasta vaciar la entrada y tocá « ✓ Validar ». ¡A jugar!",
+			"sin_velo": true, "objetivo": func(): return null},
+	]
+
+
+# Leyenda repasable (read-only) para el botón "¿Cómo se juega?": sirve en cualquier nivel.
+func _pasos_legenda() -> Array:
+	return [
+		{"texto": "Cómo se juega: armás un programa con instrucciones y el robot lo ejecuta. La salida tiene que coincidir con lo pedido.",
+			"objetivo": func(): return null},
+		{"texto": "« Entran »: la fila de valores que recibís, en orden. Cuando se vacía, el programa termina.",
+			"objetivo": func(): return entrada_box},
+		{"texto": "« La mano »: sostenés UN valor por vez. Casi todo pasa por la mano.",
+			"objetivo": func(): return mano_celda},
+		{"texto": "« Memoria »: cajitas (int) para guardar un valor y recuperarlo después.",
+			"objetivo": func(): return slots_box},
+		{"texto": "« Salen »: lo que vas soltando. Pasá el mouse por cada instrucción para ver qué hace.",
+			"objetivo": func(): return salida_box},
+		{"texto": "« Correr » ejecuta todo; « Paso » va de a uno. « Validar » chequea tu solución contra el objetivo.",
+			"objetivo": func(): return boton_run},
+	]
+
+
+# Avance dirigido por acción del jugador (pasos interactivos).
+func _tutorial_evento(tag: String) -> void:
+	if _tuto_pasos.is_empty() or _tuto_i >= _tuto_pasos.size():
+		return
+	if tutorial_capa == null or not tutorial_capa.visible:
+		return
+	var espera: String = _tuto_pasos[_tuto_i].get("espera", "")
+	if espera != "" and espera == tag:
+		_tutorial_siguiente()
 
 
 func _tutorial_arrancar() -> void:
@@ -1314,7 +1405,7 @@ func _tutorial_arrancar() -> void:
 
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 8)
-	var saltar := _boton_accion("Saltar tutorial", false)
+	var saltar := _boton_accion("Saltar tutorial" if _tuto_marca_visto else "Cerrar", false)
 	saltar.pressed.connect(_saltar_tutorial)
 	fila.add_child(saltar)
 	var sp := Control.new()
@@ -1335,14 +1426,20 @@ func _tutorial_arrancar() -> void:
 
 func _tutorial_mostrar_paso() -> void:
 	if _tuto_i >= _tuto_pasos.size():
+		if _tuto_marca_visto and nivel:
+			Puntajes.set_flag("tuto_" + nivel.id, true)
 		_cerrar_tutorial()
-		Puntajes.set_flag("tuto_" + nivel.id, true)
 		return
 	var paso = _tuto_pasos[_tuto_i]
 	var globo := _tuto_globo
+	var espera: String = paso.get("espera", "")
+	var sin_velo: bool = paso.get("sin_velo", false)
+
 	if _tuto_txt:
 		_tuto_txt.text = paso.texto
 	if _tuto_btn_sig:
+		# En pasos interactivos avanza la ACCIÓN del jugador, no el botón.
+		_tuto_btn_sig.visible = (espera == "")
 		_tuto_btn_sig.text = "¡Dale! ✓" if _tuto_i == _tuto_pasos.size() - 1 else "Siguiente ▸"
 
 	# Apuntar el spotlight al objetivo (o sin foco si null/rect sin resolver).
@@ -1350,12 +1447,14 @@ func _tutorial_mostrar_paso() -> void:
 	var rect := Rect2()
 	if objetivo_node is Control:
 		rect = objetivo_node.get_global_rect()
-	_spotlight.objetivo = rect.grow(8.0) if rect.size != Vector2.ZERO else Rect2()
-	_spotlight.queue_redraw()
+	if _spotlight:
+		_spotlight.objetivo = rect.grow(8.0) if rect.size != Vector2.ZERO else Rect2()
+		_spotlight.permitir_hueco = (espera != "")   # interactivo: el clic pasa al objetivo
+		_spotlight.mostrar_velo = not sin_velo        # último paso: sin velo, mirás el juego
+		_spotlight.queue_redraw()
 
-	# Posicionar el globito: debajo del objetivo si hay, si no centrado.
-	# Esperamos 2 frames a que el layout del panel (label con autowrap) se asiente,
-	# si no su alto sale enorme y el globo se va de pantalla.
+	# Posicionar el globito. Esperamos 2 frames a que el layout (label con autowrap)
+	# se asiente, si no su alto sale enorme y el globo se va de pantalla.
 	if globo:
 		await get_tree().process_frame
 		await get_tree().process_frame
@@ -1365,7 +1464,11 @@ func _tutorial_mostrar_paso() -> void:
 		var gs: Vector2 = globo.size
 		var pos: Vector2
 		if rect.size != Vector2.ZERO:
-			pos = Vector2(rect.position.x, rect.position.y + rect.size.y + 14)
+			# Si el objetivo está en la mitad de abajo, el globo va ARRIBA (no lo tapa).
+			if rect.position.y > size.y * 0.55:
+				pos = Vector2(rect.position.x, rect.position.y - gs.y - 14)
+			else:
+				pos = Vector2(rect.position.x, rect.position.y + rect.size.y + 14)
 		else:
 			pos = (size - gs) * 0.5
 		# Siempre dentro de pantalla.
@@ -1382,7 +1485,7 @@ func _tutorial_siguiente() -> void:
 
 
 func _saltar_tutorial() -> void:
-	if nivel:
+	if _tuto_marca_visto and nivel:
 		Puntajes.set_flag("tuto_" + nivel.id, true)
 	_cerrar_tutorial()
 
@@ -1518,6 +1621,14 @@ func _etiqueta(texto: String, tam: int, color: Color, espaciada := false) -> Lab
 	return l
 
 
+# Caption de una zona del escenario con tooltip explicativo (hover/tap).
+func _zona_label(texto: String, tip: String) -> Label:
+	var l := _etiqueta(texto, 13, COL_TENUE, true)
+	l.tooltip_text = tip
+	l.mouse_filter = Control.MOUSE_FILTER_STOP   # para que el tooltip aparezca
+	return l
+
+
 func _str_valor(v) -> String:
 	if v == null:
 		return "·"
@@ -1551,12 +1662,27 @@ class Onda extends Control:
 
 
 # Spotlight: oscurece la pantalla MENOS un rect (el objetivo), con marco coral.
+#   permitir_hueco=true -> los clics dentro del objetivo PASAN al control de abajo
+#                          (paso interactivo: "tocá agarrá"); el resto se bloquea.
+#   mostrar_velo=false  -> no oscurece ni bloquea nada (último paso: mirás el juego).
 class Spotlight extends Control:
 	var objetivo := Rect2()
 	var velo := Color(0.12, 0.11, 0.10, 0.62)
 	var marco := Color("d97757")
+	var permitir_hueco := false
+	var mostrar_velo := true
+
+	# Picking: con velo, captura todo MENOS el hueco interactivo. Sin velo, no captura.
+	func _has_point(p: Vector2) -> bool:
+		if not mostrar_velo:
+			return false
+		if permitir_hueco and objetivo.size != Vector2.ZERO and objetivo.has_point(p):
+			return false
+		return true
 
 	func _draw() -> void:
+		if not mostrar_velo:
+			return
 		if objetivo.size == Vector2.ZERO:
 			draw_rect(Rect2(Vector2.ZERO, size), velo)
 			return
@@ -1566,5 +1692,5 @@ class Spotlight extends Control:
 		draw_rect(Rect2(0, o.position.y + o.size.y, size.x, size.y - (o.position.y + o.size.y)), velo)  # abajo
 		draw_rect(Rect2(0, o.position.y, o.position.x, o.size.y), velo)                       # izquierda
 		draw_rect(Rect2(o.position.x + o.size.x, o.position.y, size.x - (o.position.x + o.size.x), o.size.y), velo)  # derecha
-		# Marco coral alrededor del hueco.
+		# Marco coral alrededor del hueco (afford: "tocá acá").
 		draw_rect(o, marco, false, 2.0)
