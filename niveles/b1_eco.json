@@ -1,0 +1,11 @@
+{
+  "id": "b1_eco",
+  "nombre": "Eco",
+  "descripcion": "Sacá los tres valores de la entrada en el mismo orden en que entran.",
+  "slots": 0,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR"],
+  "casos": [
+    { "entrada": [1, 2, 3], "salida_esperada": [1, 2, 3] }
+  ],
+  "par": { "instrucciones": 6, "pasos": 6 }
+}

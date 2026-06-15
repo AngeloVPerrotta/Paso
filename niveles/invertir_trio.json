@@ -1,0 +1,12 @@
+{
+  "id": "invertir_trio",
+  "nombre": "Invertir el trío",
+  "descripcion": "Entran tres valores. Sacalos en orden inverso.",
+  "slots": 2,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR"],
+  "casos": [
+    { "entrada": [1, 2, 3], "salida_esperada": [3, 2, 1] },
+    { "entrada": [7, 8, 9], "salida_esperada": [9, 8, 7] }
+  ],
+  "par": { "instrucciones": 10, "pasos": 20 }
+}

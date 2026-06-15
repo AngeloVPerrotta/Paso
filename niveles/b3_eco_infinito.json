@@ -1,0 +1,13 @@
+{
+  "id": "b3_eco_infinito",
+  "nombre": "Eco infinito",
+  "descripcion": "Sacá TODOS los valores de la entrada en orden, sin importar cuántos sean. Resolvelo con un loop usando etiquetas.",
+  "slots": 0,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "SALTAR", "ETIQUETA"],
+  "casos": [
+    { "entrada": [1, 2, 3, 4], "salida_esperada": [1, 2, 3, 4] },
+    { "entrada": [7, 7], "salida_esperada": [7, 7] },
+    { "entrada": [3], "salida_esperada": [3] }
+  ],
+  "par": { "instrucciones": 3, "pasos": 21 }
+}

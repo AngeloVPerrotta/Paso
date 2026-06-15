@@ -1,0 +1,14 @@
+{
+  "id": "b4_filtrar_ceros",
+  "nombre": "Filtrar ceros",
+  "descripcion": "Sacá solo los valores distintos de cero, en orden; los ceros se descartan. Necesitás SALTAR_SI_CERO dentro de un loop.",
+  "slots": 0,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "SALTAR", "SALTAR_SI_CERO", "ETIQUETA"],
+  "casos": [
+    { "entrada": [1, 0, 2, 0, 3], "salida_esperada": [1, 2, 3] },
+    { "entrada": [0, 0, 5], "salida_esperada": [5] },
+    { "entrada": [4, 4, 0], "salida_esperada": [4, 4] },
+    { "entrada": [0], "salida_esperada": [] }
+  ],
+  "par": { "instrucciones": 4, "pasos": 36 }
+}

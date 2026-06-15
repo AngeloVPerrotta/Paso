@@ -1,0 +1,11 @@
+{
+  "id": "b2_invertir_par",
+  "nombre": "Invertir el par",
+  "descripcion": "Entran dos valores A y B; tienen que salir en orden inverso: B, A. Vas a necesitar un slot de memoria.",
+  "slots": 1,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR"],
+  "casos": [
+    { "entrada": [7, 3], "salida_esperada": [3, 7] }
+  ],
+  "par": { "instrucciones": 6, "pasos": 6 }
+}

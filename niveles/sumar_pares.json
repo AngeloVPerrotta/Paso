@@ -1,0 +1,13 @@
+{
+  "id": "sumar_pares",
+  "nombre": "Sumar de a pares",
+  "descripcion": "La cola viene de a pares. Por cada par, sacá su suma.",
+  "slots": 1,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "GUARDAR", "SUMAR", "SALTAR", "ETIQUETA"],
+  "casos": [
+    { "entrada": [7, 3, 4, 6], "salida_esperada": [10, 10] },
+    { "entrada": [1, 2], "salida_esperada": [3] },
+    { "entrada": [5, 5, 2, 8, 1, 9], "salida_esperada": [10, 10, 10] }
+  ],
+  "par": { "instrucciones": 6, "pasos": 36 }
+}

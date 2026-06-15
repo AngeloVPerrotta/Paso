@@ -1,0 +1,12 @@
+{
+  "id": "restar_par",
+  "nombre": "Restar el par",
+  "descripcion": "Entran dos valores, A y B (en ese orden). Sacá A menos B.",
+  "slots": 2,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "RESTAR"],
+  "casos": [
+    { "entrada": [9, 4], "salida_esperada": [5] },
+    { "entrada": [10, 3], "salida_esperada": [7] }
+  ],
+  "par": { "instrucciones": 7, "pasos": 14 }
+}

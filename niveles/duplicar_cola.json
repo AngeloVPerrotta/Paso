@@ -1,0 +1,13 @@
+{
+  "id": "duplicar_cola",
+  "nombre": "Duplicar la cola",
+  "descripcion": "Entra una cola de cualquier largo. Sacá cada valor dos veces.",
+  "slots": 1,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "SALTAR", "ETIQUETA"],
+  "casos": [
+    { "entrada": [3, 5, 8], "salida_esperada": [3, 3, 5, 5, 8, 8] },
+    { "entrada": [1, 2], "salida_esperada": [1, 1, 2, 2] },
+    { "entrada": [9], "salida_esperada": [9, 9] }
+  ],
+  "par": { "instrucciones": 6, "pasos": 36 }
+}

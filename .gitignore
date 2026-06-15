@@ -1,0 +1,18 @@
+# Godot 4
+.godot/
+/android/
+*.translation
+
+# Exports
+export_presets.cfg
+/builds/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Screenshots de desarrollo (shot.gd se trackea; su salida no)
+shot.png
+shot.png.import
+shot_*.png
+shot_*.png.import
