@@ -19,12 +19,16 @@ extends RefCounted
 const FIRMA := "void Resolver(Queue<int> entrada, List<int> salida)"
 
 
-# Punto de entrada: recibe el modelo de programa_modelo() ({lineas:[{op,arg}], ...}).
+# Punto de entrada: recibe el modelo de programa_modelo() ({lineas, descripcion, ...}).
 static func generar(modelo) -> String:
 	var lineas: Array = []
+	var descripcion := ""
 	if typeof(modelo) == TYPE_DICTIONARY:
 		lineas = modelo.get("lineas", [])
+		descripcion = str(modelo.get("descripcion", ""))
 	var out: Array = []
+	if descripcion != "":
+		out.append_array(_wrap_comentario(descripcion, 70))   # qué hace el método
 	out.append(FIRMA)
 	out.append("{")
 	if lineas.is_empty():
@@ -44,11 +48,11 @@ static func generar(modelo) -> String:
 
 
 # Conveniencia para tests / UI: arma el modelo desde un `programa` crudo ([op,arg]).
-static func desde_programa(programa: Array, slots := 0, nivel_id := "") -> String:
+static func desde_programa(programa: Array, slots := 0, nivel_id := "", descripcion := "") -> String:
 	var lineas := []
 	for instr in programa:
 		lineas.append({"op": instr[0], "arg": instr[1] if instr.size() > 1 else null})
-	return generar({"lineas": lineas, "slots": slots, "nivel": nivel_id})
+	return generar({"lineas": lineas, "slots": slots, "nivel": nivel_id, "descripcion": descripcion})
 
 
 # ---------------------------------------------------------------------------
@@ -148,13 +152,16 @@ static func _emit_ops(lineas: Array, lo: int, hi: int, out: Array, indent: int, 
 					_push(out, indent, "break;")
 			"SALTAR_SI_CERO":
 				if ctx != null and arg == ctx.inicio:
+					_push(out, indent, "// si la mano vale 0, saltás al próximo valor")
 					_push(out, indent, "if (mano == 0) continue;")
 				elif ctx != null and ctx.fin_set.has(arg):
+					_push(out, indent, "// si la mano vale 0, cortás el recorrido")
 					_push(out, indent, "if (mano == 0) break;")
 				else:
 					# Branch: el resto del cuerpo (desde la etiqueta X) es el if-block.
 					var xi := _buscar_etiqueta(lineas, arg, i + 1, hi)
 					if xi >= 0:
+						_push(out, indent, "// solo cuando la mano quedó en 0")
 						_push(out, indent, "if (mano == 0)")
 						_push(out, indent, "{")
 						_emit_ops(lineas, xi + 1, hi, out, indent + 1, decl, ctx)
@@ -165,6 +172,7 @@ static func _emit_ops(lineas: Array, lo: int, hi: int, out: Array, indent: int, 
 
 static func _emit_loop(lineas: Array, loop: Dictionary, out: Array, decl: Dictionary) -> void:
 	var ctx := {"inicio": loop.inicio, "fin_set": loop.fin_set}
+	_push(out, 1, "// repetí mientras queden valores en la entrada")
 	_push(out, 1, "while (entrada.Count > 0)")
 	_push(out, 1, "{")
 	_emit_ops(lineas, loop.body_lo, loop.body_hi, out, 2, decl, ctx)
@@ -239,6 +247,23 @@ static func _asignar(out: Array, indent: int, decl: Dictionary, nombre: String, 
 	else:
 		decl[nombre] = true
 		_push(out, indent, "int %s = %s;" % [nombre, expr])
+
+
+# Parte un texto largo en varias líneas "// ..." para que no necesite scroll horizontal.
+static func _wrap_comentario(texto: String, ancho: int) -> Array:
+	var lineas := []
+	var actual := ""
+	for p in texto.split(" ", false):
+		if actual == "":
+			actual = p
+		elif actual.length() + 1 + p.length() <= ancho:
+			actual += " " + p
+		else:
+			lineas.append("// " + actual)
+			actual = p
+	if actual != "":
+		lineas.append("// " + actual)
+	return lineas
 
 
 static func _buscar_etiqueta(lineas: Array, nombre, lo: int, hi: int) -> int:

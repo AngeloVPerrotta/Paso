@@ -47,6 +47,17 @@ const ZONA_AYUDA := {
 	"salen": "Salen: lo que vas soltando. Para resolver, tiene que coincidir con lo pedido.",
 }
 
+# Mini-demo de la pantalla "Cómo funciona la máquina": un ejemplo de 3 instrucciones
+# que se corre solo y lento. Usa el MISMO intérprete (lógica pura) que el juego.
+const DEMO_PROG := [["TOMAR", null], ["GUARDAR", 0], ["SOLTAR", null]]
+const DEMO_IN := [3, 9]
+const DEMO_CAPS := [
+	"Esta es la máquina: una fila que ENTRA, la MANO (sostiene un valor a la vez), las MEMORIAS y lo que SALE.",
+	"El robot AGARRA el primero de la fila y lo tiene en la mano. Sostiene una sola cosa a la vez.",
+	"Lo puede GUARDAR en una memoria para usarlo más tarde (la mano lo sigue teniendo).",
+	"…o SOLTARLO a la salida. Eso es todo: agarrar, guardar, soltar. Con eso armás cualquier nivel.",
+]
+
 # --- Banco de niveles ---
 var orden: Array = []
 var nivel_idx := 0
@@ -127,6 +138,19 @@ var _arrancado := false                 # true tras el boot: a partir de ahi gua
 var csharp_capa: Control
 var csharp_texto: TextEdit
 
+# --- "Cómo funciona la máquina" (intro demo) + modo libre ---
+var como_capa: Control
+var es_libre := false                   # modo libre: sin objetivo, solo experimentar
+var _demo_estado
+var _demo_paso_i := 0
+var _demo_timer: Timer
+var _demo_entrada_box: HBoxContainer
+var _demo_salida_box: HBoxContainer
+var _demo_mano_celda: Panel
+var _demo_mem_celda: Panel
+var _demo_caption: Label
+var _demo_robot: Robot
+
 # --- Tutorial ---
 var tutorial_capa: Control
 var _spotlight                          # Spotlight (inner class)
@@ -171,6 +195,7 @@ func _cargar_indice(idx: int) -> void:
 	if orden.is_empty():
 		return
 	_cerrar_tutorial()
+	es_libre = false
 	nivel_idx = clampi(idx, 0, orden.size() - 1)
 	_cargar_nivel(orden[nivel_idx])
 	if nivel == null:
@@ -228,6 +253,12 @@ func _boton_paleta(op: String) -> Control:
 func _repintar_cabecera() -> void:
 	if nivel == null:
 		return
+	if es_libre:
+		titulo_label.text = "Modo libre   ·   experimentá"
+		titulo_label.add_theme_color_override("font_color", COL_ACENTO)
+		desc_label.text = nivel.descripcion
+		meta_label.text = ""              # sin objetivo ni "tu mejor"
+		return
 	var resuelto: bool = resueltos.has(nivel.id)
 	var marca := "   ✓" if resuelto else ""
 	titulo_label.text = "%s   ·   nivel %d/%d%s" % [nivel.nombre, nivel_idx + 1, orden.size(), marca]
@@ -282,11 +313,11 @@ func _construir_ui() -> void:
 	var margen := MarginContainer.new()
 	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for lado in ["left", "top", "right", "bottom"]:
-		margen.add_theme_constant_override("margin_" + lado, 28)
+		margen.add_theme_constant_override("margin_" + lado, 22)
 	add_child(margen)
 
 	var raiz := VBoxContainer.new()
-	raiz.add_theme_constant_override("separation", 14)
+	raiz.add_theme_constant_override("separation", 11)
 	margen.add_child(raiz)
 
 	# Cabecera: navegacion + titulo.
@@ -379,6 +410,7 @@ func _construir_ui() -> void:
 	add_child(tutorial_capa)
 
 	_construir_csharp()
+	_construir_como_funciona()
 
 	timer = Timer.new()
 	timer.wait_time = VELOCIDADES[vel_idx].paso
@@ -421,7 +453,7 @@ func _construir_editor() -> Control:
 func _construir_escenario() -> Control:
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_theme_constant_override("separation", 16)
+	col.add_theme_constant_override("separation", 12)
 	escenario_col = col
 
 	# Robot compañero arriba a la derecha del escenario.
@@ -568,6 +600,12 @@ func _construir_inicio() -> void:
 	_btn_continuar.pressed.connect(_continuar)
 	v.add_child(_btn_continuar)
 
+	var b_como := _boton_accion("Cómo funciona la máquina", false)
+	b_como.custom_minimum_size = Vector2(240, 42)
+	b_como.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	b_como.pressed.connect(_abrir_como_funciona)
+	v.add_child(b_como)
+
 
 func _mostrar_inicio() -> void:
 	_detener()
@@ -584,6 +622,10 @@ func _mostrar_inicio() -> void:
 		_inicio_robot.set_mood("feliz")
 	inicio_capa.visible = true
 	inicio_capa.move_to_front()
+	# La 1ª vez de todas, mostrale el modelo antes de tocar nada.
+	if _puede_tutorial() and not Puntajes.flag("vio_maquina"):
+		Puntajes.set_flag("vio_maquina", true)
+		_abrir_como_funciona()
 
 
 func _jugar() -> void:
@@ -678,6 +720,206 @@ func _toggle_csharp() -> void:
 
 func _cerrar_csharp() -> void:
 	csharp_capa.visible = false
+
+
+# ---------------------------------------------------------------------------
+# "Cómo funciona la máquina": intro conceptual con un mini-demo que se corre solo
+# y lento sobre un ejemplo de 3 instrucciones. Usa el intérprete puro. La idea es
+# que quien recién arranca VEA el modelo (mano / memoria / entra / sale) antes de
+# tocar nada. Accesible desde inicio y desde "¿Cómo se juega?".
+# ---------------------------------------------------------------------------
+func _construir_como_funciona() -> void:
+	como_capa = Control.new()
+	como_capa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	como_capa.mouse_filter = Control.MOUSE_FILTER_STOP
+	como_capa.visible = false
+	add_child(como_capa)
+
+	var fondo := ColorRect.new()
+	fondo.color = COL_FONDO
+	fondo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	como_capa.add_child(fondo)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	como_capa.add_child(center)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 16)
+	center.add_child(v)
+
+	var trow := HBoxContainer.new()
+	trow.add_theme_constant_override("separation", 14)
+	trow.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var titulo := Label.new()
+	titulo.text = "Cómo funciona la máquina"
+	titulo.add_theme_font_override("font", fuente_sans)
+	titulo.add_theme_font_size_override("font_size", 30)
+	titulo.add_theme_color_override("font_color", COL_TEXTO)
+	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	trow.add_child(titulo)
+	_demo_robot = Robot.new()
+	_demo_robot.custom_minimum_size = Vector2(96, 96)
+	trow.add_child(_demo_robot)
+	v.add_child(trow)
+
+	var sub := Label.new()
+	sub.text = "Mirá al robot resolver un ejemplo chiquito. Una cosa a la vez."
+	sub.add_theme_font_override("font", fuente_sans)
+	sub.add_theme_font_size_override("font_size", 16)
+	sub.add_theme_color_override("font_color", COL_TENUE)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(sub)
+
+	# Mini-escenario.
+	var card := _panel(COL_PANEL)
+	card.custom_minimum_size = Vector2(560, 0)
+	card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var cv := VBoxContainer.new()
+	cv.add_theme_constant_override("separation", 10)
+	card.add_child(cv)
+	cv.add_child(_demo_fila("entran"))
+	cv.add_child(_demo_fila("en la mano"))
+	cv.add_child(_demo_fila("memoria"))
+	cv.add_child(_demo_fila("salen"))
+	v.add_child(card)
+
+	_demo_caption = Label.new()
+	_demo_caption.add_theme_font_override("font", fuente_sans)
+	_demo_caption.add_theme_font_size_override("font_size", 17)
+	_demo_caption.add_theme_color_override("font_color", COL_TEXTO)
+	_demo_caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_demo_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_demo_caption.custom_minimum_size = Vector2(560, 66)
+	_demo_caption.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(_demo_caption)
+
+	var brow := HBoxContainer.new()
+	brow.add_theme_constant_override("separation", 10)
+	brow.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var entendido := _boton_accion("Entendido", true)
+	entendido.custom_minimum_size = Vector2(160, 44)
+	entendido.pressed.connect(_cerrar_como_funciona)
+	brow.add_child(entendido)
+	var libre := _boton_accion("Probar en modo libre", false)
+	libre.custom_minimum_size = Vector2(200, 44)
+	libre.pressed.connect(_modo_libre)
+	brow.add_child(libre)
+	v.add_child(brow)
+
+	_demo_timer = Timer.new()
+	_demo_timer.wait_time = 1.8
+	_demo_timer.one_shot = false
+	_demo_timer.timeout.connect(_demo_tick)
+	add_child(_demo_timer)
+
+
+# Una fila del mini-escenario: etiqueta + caja de celdas. Guarda la referencia que
+# corresponda (entrada/mano/memoria/salida) para actualizarla en cada tick.
+func _demo_fila(cual: String) -> Control:
+	var fila := HBoxContainer.new()
+	fila.add_theme_constant_override("separation", 10)
+	var et := _etiqueta(cual, 13, COL_TENUE, true)
+	et.custom_minimum_size = Vector2(110, 0)
+	et.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	fila.add_child(et)
+	match cual:
+		"entran":
+			_demo_entrada_box = HBoxContainer.new()
+			_demo_entrada_box.add_theme_constant_override("separation", 8)
+			fila.add_child(_demo_entrada_box)
+		"en la mano":
+			_demo_mano_celda = _celda(COL_CELDA)
+			_demo_mano_celda.get_child(0).add_theme_color_override("font_color", COL_MANO)
+			fila.add_child(_demo_mano_celda)
+		"memoria":
+			_demo_mem_celda = _celda(COL_CELDA)
+			fila.add_child(_demo_mem_celda)
+		"salen":
+			_demo_salida_box = HBoxContainer.new()
+			_demo_salida_box.add_theme_constant_override("separation", 8)
+			fila.add_child(_demo_salida_box)
+	return fila
+
+
+func _abrir_como_funciona() -> void:
+	_cerrar_tutorial()
+	_demo_paso_i = 0
+	_demo_tick()                 # pinta el estado inicial ya
+	como_capa.visible = true
+	como_capa.move_to_front()
+	if _demo_timer:
+		_demo_timer.start()
+
+
+func _cerrar_como_funciona() -> void:
+	como_capa.visible = false
+	if _demo_timer:
+		_demo_timer.stop()
+
+
+# Un paso del mini-demo (loopea): paso 0 reinicia, 1..3 ejecutan una instrucción.
+func _demo_tick() -> void:
+	if _demo_paso_i == 0:
+		_demo_estado = Interprete.Estado.new(DEMO_IN, 1)
+	else:
+		Interprete.ejecutar_paso(_demo_estado, DEMO_PROG)
+	_demo_redibujar(_demo_paso_i)
+	_demo_paso_i = (_demo_paso_i + 1) % DEMO_CAPS.size()
+
+
+func _demo_redibujar(i: int) -> void:
+	_pintar_fila(_demo_entrada_box, _demo_estado.entrada, false)
+	_pintar_fila(_demo_salida_box, _demo_estado.salida, false)
+	_demo_mano_celda.get_child(0).text = _str_valor(_demo_estado.mano)
+	_demo_mem_celda.get_child(0).text = _str_valor(_demo_estado.slots[0])
+	_demo_caption.text = DEMO_CAPS[i]
+	match i:
+		0:
+			if _demo_robot: _demo_robot.set_mood("idle")
+		1:
+			if _demo_robot: _demo_robot.set_mood("pensando")
+			_pop(_demo_mano_celda, 0.5)
+		2:
+			if _demo_robot: _demo_robot.set_mood("idle")
+			_brillo(_demo_mem_celda, 0.5)
+		3:
+			if _demo_robot: _demo_robot.set_mood("feliz")
+			_pop_ultimo(_demo_salida_box, 0.5)
+
+
+# Modo libre: un sandbox sin objetivo (todas las instrucciones, entrada de ejemplo).
+# El nivel se arma en código (no es parte del orden de juego ni de los tests).
+func _modo_libre() -> void:
+	_cerrar_como_funciona()
+	_cerrar_tutorial()
+	_cerrar_csharp()
+	if inicio_capa:
+		inicio_capa.visible = false
+	es_libre = true
+	nivel = Niveles.desde_dict({
+		"id": "libre",
+		"nombre": "Modo libre",
+		"descripcion": "Modo libre: experimentá sin objetivo. Agarrá, guardá/recuperá, sumá/restá, soltá — y corré.",
+		"slots": 2,
+		"instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "SUMAR", "RESTAR", "SALTAR", "SALTAR_SI_CERO", "ETIQUETA"],
+		"casos": [{"entrada": [3, 1, 4, 1, 5], "salida_esperada": []}],
+		"par": {"instrucciones": 0, "pasos": 0},
+	})
+	programa = []
+	programa_run = []
+	cantidad_slots = nivel.slots
+	entrada_inicial = nivel.casos[0].entrada.duplicate()
+	_repintar_paleta()
+	_repintar_programa()
+	_construir_memoria()
+	_repintar_cabecera()
+	_repintar_progreso()
+	_reset_corrida()
+	if robot:
+		robot.set_mood("idle")
 
 
 # ---------------------------------------------------------------------------
@@ -908,6 +1150,10 @@ func _on_vel_pressed() -> void:
 
 func _on_validar_pressed() -> void:
 	if nivel == null:
+		return
+	if es_libre:
+		validacion_label.text = "Modo libre: no hay objetivo. Probá lo que quieras y mirá la máquina."
+		validacion_label.add_theme_color_override("font_color", COL_TENUE)
 		return
 	var r := Validador.validar(nivel, programa)
 	if r.motivo != "":
@@ -1371,6 +1617,7 @@ func programa_modelo() -> Dictionary:
 		})
 	return {
 		"nivel": nivel.id if nivel else "",
+		"descripcion": nivel.descripcion if nivel else "",
 		"slots": cantidad_slots,
 		"lineas": lineas,
 	}
@@ -1509,6 +1756,12 @@ func _tutorial_arrancar() -> void:
 	_tuto_btn_sig.pressed.connect(_tutorial_siguiente)
 	fila.add_child(_tuto_btn_sig)
 	gv.add_child(fila)
+
+	# En la leyenda repasable (no la 1ª vez), un acceso al demo conceptual.
+	if not _tuto_marca_visto:
+		var b_maq := _boton_accion("Cómo funciona la máquina ▸", false)
+		b_maq.pressed.connect(_abrir_como_funciona)   # _abrir_como_funciona cierra el tutorial
+		gv.add_child(b_maq)
 
 	_tuto_globo = globo
 	tutorial_capa.add_child(globo)

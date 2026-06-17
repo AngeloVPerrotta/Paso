@@ -17,7 +17,7 @@ func _initialize() -> void:
 		assert(nivel != null, "no carga %s" % id)
 		var sol = Soluciones.para(id)
 		assert(not sol.is_empty(), "falta solución de referencia: %s" % id)
-		var cs: String = Csharp.desde_programa(sol, nivel.slots, id)
+		var cs: String = Csharp.desde_programa(sol, nivel.slots, id, nivel.descripcion)
 		print("==== %s ====" % id)
 		print(cs)
 		print("")
@@ -26,12 +26,15 @@ func _initialize() -> void:
 		assert(not cs.contains("goto"), "%s: no debería usar goto (patrón reconocido)" % id)
 		assert(not cs.contains("null"), "%s: apareció 'null' en el C#" % id)
 		assert(cs.contains("int mano"), "%s: no declara la mano" % id)
+		# Comentario-resumen arriba del método (= enunciado del nivel).
+		assert(cs.begins_with("// "), "%s: falta el comentario de qué hace" % id)
 
-	# Loops -> while.
+	# Loops -> while (con su comentario).
 	for id in ["b3_eco_infinito", "b4_filtrar_ceros", "duplicar_cola", "sumar_pares", "cortar_en_cero", "pares_iguales"]:
 		var nivel = Niveles.cargar(id)
 		var cs: String = Csharp.desde_programa(Soluciones.para(id), nivel.slots, id)
 		assert(cs.contains("while (entrada.Count > 0)"), "%s: debería ser while" % id)
+		assert(cs.contains("// repetí mientras"), "%s: falta el comentario del loop" % id)
 
 	# Lineales -> sin while.
 	for id in ["b1_eco", "b2_invertir_par", "duplicar", "invertir_trio", "sumar_par", "restar_par"]:

@@ -16,18 +16,33 @@ var escena
 
 func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(DIR)
+	# Evitar que el auto-abrir de "Cómo funciona" tape la captura del inicio.
+	Puntajes.set_flag("vio_maquina", true)
 	escena = load("res://main.tscn").instantiate()
 	get_root().add_child(escena)
 	await process_frame
 	await _esperar(8)
 
 	await _shot_inicio()
+	await _shot_como()
 	await _shot_tutorial()
 	await _shot_corrida_y_win()
 	await _shot_csharp()
 
 	print("listo: screenshots guardados en shots/")
 	quit()
+
+
+# Pantalla "Cómo funciona la máquina" en el paso "guardá" (valor en memoria).
+func _shot_como() -> void:
+	escena._abrir_como_funciona()
+	escena._demo_timer.stop()      # control manual para una captura estable
+	escena._demo_tick()            # agarrá
+	escena._demo_tick()            # guardá (queda el valor en memoria)
+	await _esperar(10)
+	await _guardar("shot_como.png")
+	escena._cerrar_como_funciona()
+	await _esperar(2)
 
 
 func _shot_inicio() -> void:
