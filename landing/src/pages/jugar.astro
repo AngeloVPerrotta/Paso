@@ -1,0 +1,50 @@
+---
+import Base from "../layouts/Base.astro";
+// El juego web va en su PROPIA ruta para que la landing quede liviana: el build
+// de Godot (pesado) recién se carga cuando entran acá. Poné el export web en
+// public/juego/ (con su index.html). Si exportaste con threads ON, dejá el
+// public/juego/.htaccess con los headers COOP/COEP (ver README).
+---
+<Base title="Jugar — Paso" description="Jugá Paso en el navegador, gratis.">
+  <div class="jugar">
+    <header class="jugar__bar">
+      <a class="jugar__volver" href="/">←  Volver</a>
+      <span class="jugar__logo">Paso</span>
+      <a class="jugar__exe" href="/descargas/paso.exe">⬇ Descargar .exe</a>
+    </header>
+    <div class="jugar__marco">
+      <iframe
+        class="jugar__juego"
+        src="/juego/index.html"
+        title="Paso — juego"
+        allow="autoplay; fullscreen; cross-origin-isolated"
+        loading="eager"
+      ></iframe>
+      <p class="jugar__fallback">
+        Si el juego no carga, todavía no se subió el build web a <code>/juego/</code>,
+        o falta el header de aislamiento (ver README). Mientras tanto podés
+        <a href="/descargas/paso.exe">descargar la versión de Windows</a>.
+      </p>
+    </div>
+  </div>
+
+  <style>
+    .jugar { display: flex; flex-direction: column; min-height: 100svh; }
+    .jugar__bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; padding: 0.7rem clamp(16px, 4vw, 32px);
+      border-bottom: 1px solid var(--panel-borde); background: var(--panel);
+    }
+    .jugar__logo { font-family: var(--serif); font-weight: 600; font-size: 1.3rem; }
+    .jugar__volver, .jugar__exe { color: var(--teal); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+    .jugar__volver:hover, .jugar__exe:hover { color: var(--teal-oscuro); }
+    .jugar__marco { position: relative; flex: 1; display: grid; place-items: center; }
+    .jugar__juego { width: 100%; height: 100%; border: 0; display: block; position: absolute; inset: 0; }
+    .jugar__fallback {
+      max-width: 38ch; text-align: center; color: var(--tenue);
+      font-size: 0.95rem; padding: 2rem; pointer-events: auto;
+    }
+    /* El iframe tapa el fallback cuando hay juego; si el src 404ea, queda visible debajo. */
+    .jugar__juego { background: transparent; }
+  </style>
+</Base>

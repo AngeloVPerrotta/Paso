@@ -1,0 +1,10 @@
+---
+// CTA reusable. variant: "primary" (lleno teal) | "secondary" (outline).
+interface Props {
+  href: string;
+  variant?: "primary" | "secondary";
+  label: string;
+}
+const { href, variant = "primary", label } = Astro.props;
+---
+<a class={`btn btn--${variant}`} href={href}>{label}</a>

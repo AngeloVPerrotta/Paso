@@ -1,0 +1,136 @@
+---
+import Base from "../layouts/Base.astro";
+import Robot from "../components/Robot.astro";
+import Boton from "../components/Boton.astro";
+import Icono from "../components/Icono.astro";
+
+// ╔══════════════════════════════════════════════════════════════════════╗
+// ║  ⚙️  COMPLETÁ ESTAS DOS URLS (Angelo)                                  ║
+// ║  - URL_JUGAR: ruta del juego web. Por defecto /jugar (ver jugar.astro).║
+// ║  - URL_DESCARGA: poné el .exe en public/descargas/paso.exe.            ║
+// ╚══════════════════════════════════════════════════════════════════════╝
+const URL_JUGAR = "/jugar";
+const URL_DESCARGA = "/descargas/paso.exe";
+
+const REPO = "https://github.com/AngeloVPerrotta/Paso";
+const PORTFOLIO = "https://angeloperrotta.online";
+const year = new Date().getFullYear();
+
+const bullets = [
+  { icono: "apilar", titulo: "Programás apilando instrucciones",
+    desc: "Arrastrás órdenes simples (agarrá, guardá, sumá, saltá) en vez de escribir sintaxis." },
+  { icono: "robot", titulo: "Un robot las ejecuta paso a paso",
+    desc: "Ves el estado cambiar en cada paso: la mano, la memoria, las colas de entrada y salida." },
+  { icono: "codigo", titulo: "Después lo ves traducido a código real",
+    desc: "El mismo programa, mostrado en C y C# comentado y legible." },
+] as const;
+---
+
+<Base>
+  <!-- ── HERO ─────────────────────────────────────────────────────────── -->
+  <a class="logo" href="/">Paso</a>
+  <header class="hero">
+    <div class="hero__robot" data-parallax>
+      <Robot />
+    </div>
+    <div class="hero__texto">
+      <h1>Paso</h1>
+      <p class="hero__tagline">Un juego de lógica: programá la solución, paso a paso.</p>
+      <div class="cta-fila">
+        <Boton href={URL_JUGAR} variant="primary" label="▶  Jugar en el navegador" />
+        <Boton href={URL_DESCARGA} variant="secondary" label="⬇  Descargar para Windows" />
+      </div>
+      <p class="cta-micro">Gratis · sin instalar nada para probarlo.</p>
+    </div>
+  </header>
+
+  <!-- ── QUÉ ES ───────────────────────────────────────────────────────── -->
+  <section class="centro" data-reveal>
+    <div class="container">
+      <p class="eyebrow">Qué es</p>
+      <h2 class="lede" style="max-width: 24ch; margin-inline:auto; font-family: var(--serif); font-size: clamp(1.6rem, 4vw, 2.4rem);">
+        Aprendés a pensar como un programa —sin escribir código— y después lo ves en C y C# de verdad.
+      </h2>
+      <ul class="bullets">
+        {bullets.map((b) => (
+          <li class="bullet">
+            <div class="bullet__icono"><Icono name={b.icono} /></div>
+            <h3>{b.titulo}</h3>
+            <p>{b.desc}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <!-- ── CAPTURAS ─────────────────────────────────────────────────────── -->
+  <section data-reveal>
+    <div class="container">
+      <div class="grid-capturas">
+        <figure class="shot">
+          <img src="/shots/shot_inicio.png" width="1000" height="900" loading="lazy" decoding="async"
+               alt="Pantalla de inicio de Paso: el robot, el título y los botones para empezar." />
+          <figcaption>La cara del juego: elegís track (C o C#) y arrancás.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="/shots/shot_como.png" width="1000" height="900" loading="lazy" decoding="async"
+               alt="La mecánica: entradas, la mano que sostiene un valor, la memoria y las salidas." />
+          <figcaption>La máquina: entradas, la “mano”, la memoria y las salidas.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GIT (sección destacada) ──────────────────────────────────────── -->
+  <section class="git" data-reveal>
+    <div class="container">
+      <div class="git__head">
+        <span class="git__sello">★ El diferencial</span>
+        <h2>No solo programás: aprendés Git de verdad</h2>
+        <p class="lede muted">
+          Un módulo aparte te enseña Git y GitHub: qué es un repo, local vs nube, y una
+          consola donde tipeás comandos reales y ves los archivos moverse.
+        </p>
+      </div>
+      <div class="git__capturas">
+        <figure class="shot g-consola">
+          <img src="/shots/shot_git_consola.png" width="1000" height="900" loading="lazy" decoding="async"
+               alt="El sandbox de Git en acción: consola con comandos reales y los archivos cambiando de estado, ejercicio 6 de 10." />
+          <figcaption>La consola del sandbox: comandos reales, archivos que cambian de estado.</figcaption>
+        </figure>
+        <figure class="shot g-nube">
+          <img src="/shots/shot_git_nube.png" width="1000" height="900" loading="lazy" decoding="async"
+               alt="Explicación visual de local contra la nube (tu PC y el servidor remoto)." />
+          <figcaption>Local ↔ nube, sin vueltas.</figcaption>
+        </figure>
+        <figure class="shot g-push">
+          <img src="/shots/shot_git_push.png" width="1000" height="900" loading="lazy" decoding="async"
+               alt="El flujo de git push: los commits viajando de tu PC al servidor." />
+          <figcaption>El flujo: add → commit → push → pull.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA FINAL ────────────────────────────────────────────────────── -->
+  <section class="centro" data-reveal>
+    <div class="container">
+      <h2>Probalo ahora —no necesitás instalar nada.</h2>
+      <div class="cta-fila">
+        <Boton href={URL_JUGAR} variant="primary" label="▶  Jugar en el navegador" />
+        <Boton href={URL_DESCARGA} variant="secondary" label="⬇  Descargar para Windows" />
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ───────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="container">
+      <span>Hecho por <a href={PORTFOLIO}>Angelo Perrotta</a> · {year}</span>
+      <nav class="footer__links">
+        <a href={REPO}>GitHub del repo</a>
+        <a href={PORTFOLIO}>Portfolio</a>
+      </nav>
+    </div>
+  </footer>
+</Base>

@@ -1,0 +1,87 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+const {
+  title = "Paso — Un juego de lógica: programá la solución, paso a paso",
+  description = "Paso es un juego educativo: aprendés a pensar como un programa —sin escribir código— y después lo ves en C y C# de verdad. Incluye un sandbox para aprender Git. Jugá en el navegador, gratis.",
+} = Astro.props;
+const ogImage = new URL("/shots/shot_inicio.png", Astro.site ?? "https://paso.angeloperrotta.online").href;
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#F5F2EA" />
+
+    <!-- Open Graph (link preview) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Fuentes: Fraunces (serif humanista, títulos) + Inter (sans, cuerpo) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap"
+    />
+  </head>
+  <body>
+    <slot />
+
+    <script>
+      // Scroll-reveal (IntersectionObserver) + parallax leve del robot. Vanilla, sin deps.
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      const items = document.querySelectorAll("[data-reveal]");
+      if (reduce || !("IntersectionObserver" in window)) {
+        items.forEach((el) => el.classList.add("is-visible"));
+      } else {
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting) {
+                e.target.classList.add("is-visible");
+                io.unobserve(e.target);
+              }
+            });
+          },
+          { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+        );
+        items.forEach((el) => io.observe(el));
+      }
+
+      // Parallax leve: el robot del hero se mueve más lento que el texto al scrollear.
+      if (!reduce) {
+        const robot = document.querySelector<HTMLElement>("[data-parallax]");
+        if (robot) {
+          let ticking = false;
+          const update = () => {
+            robot.style.setProperty("--parallax", `${window.scrollY * 0.12}px`);
+            ticking = false;
+          };
+          window.addEventListener(
+            "scroll",
+            () => {
+              if (!ticking) {
+                ticking = true;
+                requestAnimationFrame(update);
+              }
+            },
+            { passive: true }
+          );
+        }
+      }
+    </script>
+  </body>
+</html>

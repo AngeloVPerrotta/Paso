@@ -1,0 +1,82 @@
+---
+// El robot de marca de Paso, reconstruido fiel al dibujo por código de robot.gd:
+// silueta cuerpo+cuello+cabeza (crema #ECE7DA con borde #D8D0BF), visor oscuro,
+// dos ojos ovalados claros, luz de pecho ámbar y antena con puntito ámbar.
+// Coordenadas tomadas de robot.gd (_draw / _silueta), centro cx=60, cy=60.
+---
+
+<svg class="robot-svg" viewBox="0 0 120 124" role="img" aria-label="El robot de Paso"
+     xmlns="http://www.w3.org/2000/svg">
+  <!-- sombra de contacto (suave) -->
+  <ellipse cx="60" cy="113" rx="26" ry="6" fill="#232220" opacity="0.10"/>
+
+  <!-- silueta: borde (inflado) + relleno crema, para un contorno sin costuras -->
+  <g class="robot-borde" fill="#D8D0BF">
+    <rect x="30" y="24" width="60" height="50" rx="15"/>   <!-- cabeza -->
+    <rect x="49" y="60" width="22" height="18"/>            <!-- cuello -->
+    <rect x="35" y="70" width="50" height="34" rx="13"/>    <!-- base -->
+  </g>
+  <g class="robot-cuerpo" fill="#ECE7DA">
+    <rect x="32" y="26" width="56" height="46" rx="13"/>
+    <rect x="51" y="62" width="18" height="14"/>
+    <rect x="37" y="72" width="46" height="30" rx="11"/>
+  </g>
+
+  <!-- visor (cara oscura) -->
+  <rect x="40" y="34" width="40" height="24" rx="9" fill="#232220"/>
+
+  <!-- ojos ovalados claros -->
+  <g class="robot-ojos" fill="#F3EFE6">
+    <ellipse cx="51" cy="46" rx="4" ry="5"/>
+    <ellipse cx="69" cy="46" rx="4" ry="5"/>
+  </g>
+
+  <!-- luz de pecho -->
+  <circle cx="60" cy="87" r="3.5" fill="#E3A23A"/>
+
+  <!-- antena -->
+  <g class="robot-antena">
+    <line x1="60" y1="26" x2="60" y2="13" stroke="#232220" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="60" cy="11" r="4.5" fill="#E3A23A"/>
+  </g>
+</svg>
+
+<style>
+  .robot-svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    filter: drop-shadow(0 24px 30px rgba(35, 34, 32, 0.18));
+    animation: robot-flote 3.4s ease-in-out infinite;
+  }
+  .robot-ojos {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: robot-parpadeo 5.4s ease-in-out infinite;
+  }
+  .robot-antena {
+    transform-box: fill-box;
+    transform-origin: bottom center;
+    animation: robot-antena 4.2s ease-in-out infinite;
+  }
+
+  @keyframes robot-flote {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-9px); }
+  }
+  /* parpadeo: ojos abiertos casi siempre, un achique breve cerca del final del ciclo */
+  @keyframes robot-parpadeo {
+    0%, 90%, 100% { transform: scaleY(1); }
+    93%           { transform: scaleY(0.12); }
+    96%           { transform: scaleY(1); }
+  }
+  @keyframes robot-antena {
+    0%, 100% { transform: rotate(-3.5deg); }
+    50%      { transform: rotate(3.5deg); }
+  }
+
+  /* Sin movimiento si el usuario lo pidió (refuerza la regla global). */
+  @media (prefers-reduced-motion: reduce) {
+    .robot-svg, .robot-ojos, .robot-antena { animation: none; }
+  }
+</style>
