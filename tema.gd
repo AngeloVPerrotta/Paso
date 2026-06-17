@@ -26,5 +26,10 @@ const TENUE := Color("8f897d")        # texto/íconos apagados
 const PRIMARIO_TENUE := Color("1c7c74", 0.14)   # fondo de hover/foco sutil
 const ERROR := Color("b5564a")        # rojo-arcilla apagado (nunca estridente)
 
+# --- Variantes claras para TEXTO sobre fondos oscuros (consola del sandbox de git) ---
+# Precomputadas (lerp no es expresión constante en GDScript):
+const PRIMARIO_CLARO := Color("82b7b3")   # PRIMARIO ≈ lerp(blanco, 0.45): eco de comando
+const ERROR_CLARO := Color("cf9189")      # ERROR ≈ lerp(blanco, 0.35): error legible sobre oscuro (AA)
+
 # Velo oscuro cálido para overlays modales (panel C#, confirmaciones, spotlight).
 const VELO := Color(0.14, 0.13, 0.11, 0.5)

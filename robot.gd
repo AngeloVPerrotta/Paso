@@ -166,15 +166,3 @@ func _rect_redondeado(r: Rect2, radio: float, color: Color) -> void:
 	draw_circle(r.position + Vector2(r.size.x - rr, rr), rr, color)
 	draw_circle(r.position + Vector2(rr, r.size.y - rr), rr, color)
 	draw_circle(r.position + Vector2(r.size.x - rr, r.size.y - rr), rr, color)
-
-
-func _rect_redondeado_borde(r: Rect2, radio: float, color: Color, ancho: float) -> void:
-	# Borde simple: 4 líneas (las esquinas quedan levemente abiertas, casi imperceptible).
-	var x0 := r.position.x
-	var y0 := r.position.y
-	var x1 := r.position.x + r.size.x
-	var y1 := r.position.y + r.size.y
-	draw_line(Vector2(x0 + radio, y0), Vector2(x1 - radio, y0), color, ancho)
-	draw_line(Vector2(x0 + radio, y1), Vector2(x1 - radio, y1), color, ancho)
-	draw_line(Vector2(x0, y0 + radio), Vector2(x0, y1 - radio), color, ancho)
-	draw_line(Vector2(x1, y0 + radio), Vector2(x1, y1 - radio), color, ancho)

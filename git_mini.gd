@@ -107,7 +107,7 @@ func atrasados() -> int:          # commits en la nube que faltan localmente
 # --- Comandos ---
 func _cmd_init() -> Dictionary:
 	if iniciado:
-		return _ok("Ya era un repositorio git (lo reinicializaste).")
+		return _ok("Ya era un repositorio git. Volver a correr «git init» no borra nada (es seguro).")
 	iniciado = true
 	return _ok("Inicializaste un repositorio git vacío en tu-proyecto/.")
 
@@ -136,7 +136,10 @@ func _cmd_status() -> Dictionary:
 		for n in nue:
 			lineas.append("    %s" % n)
 	if prep.is_empty() and mod.is_empty() and nue.is_empty():
-		lineas.append("nada para commitear, el árbol de trabajo está limpio")
+		# Si hubo aviso de adelantado/atrasado, dejamos una línea en blanco antes
+		# (como git), para que "rama adelantada / hacé push" no se pegue a "árbol limpio".
+		var pre := "\n" if (adelantados() > 0 or atrasados() > 0) else ""
+		lineas.append(pre + "nada para commitear, el árbol de trabajo está limpio")
 	return _ok("\n".join(lineas))
 
 
@@ -194,6 +197,10 @@ func _cmd_push() -> Dictionary:
 			nuevos.append(c)
 	if nuevos.is_empty():
 		return _ok("Ya está todo subido. (nada para hacer push)")
+	# Fast-forward: si la nube avanzó por su cuenta, git RECHAZA el push y obliga a
+	# traer primero. Así el alumno aprende por qué hay que pull-ear antes de pushear.
+	if atrasados() > 0:
+		return _err("Tu push fue RECHAZADO (non-fast-forward): la nube tiene %d commit(s) que vos todavía no tenés.\nPrimero traelos con «git pull» y después volvé a hacer «git push»." % atrasados())
 	for c in nuevos:
 		remoto.append(c)
 	return _ok("Subiste %d commit(s) a la nube (origin/main)." % nuevos.size())
@@ -211,6 +218,8 @@ func _cmd_pull() -> Dictionary:
 		return _ok("Ya estás al día con la nube.")
 	for c in nuevos:
 		commits.append(c)
+	if adelantados() > 0:
+		return _ok("Trajiste %d commit(s) de la nube. Como vos también tenías commits sin subir, git los combinó (merge). En proyectos reales, si tocaron las mismas líneas, a veces hay que resolver conflictos a mano." % nuevos.size())
 	return _ok("Trajiste %d commit(s) de la nube." % nuevos.size())
 
 
@@ -231,13 +240,36 @@ func _cmd_clone() -> Dictionary:
 
 # --- Helpers ---
 func _mensaje_de(linea: String) -> String:
-	var i := linea.find("-m")
-	if i == -1:
+	# Buscamos el flag -m / --message como TOKEN (no como substring): así «--message»
+	# no matchea por su «-m» interno. Recorremos con la posición REAL de cada token
+	# (no un find global, que se desincroniza si hay más de un -m) y, como git, nos
+	# quedamos con el ÚLTIMO -m. El mensaje es lo que sigue al flag en la línea cruda.
+	var toks := linea.split(" ", false)
+	var pos := 0
+	var inicio := -1
+	for tk in toks:
+		var en := linea.find(tk, pos)
+		pos = en + tk.length()
+		if tk == "-m" or tk == "--message":
+			inicio = en + tk.length()
+		elif tk.begins_with("--message="):
+			inicio = en + "--message=".length()
+		elif tk.begins_with("-m") and tk.length() > 2 and not tk.begins_with("--"):
+			inicio = en + 2          # forma pegada: -mmensaje
+	if inicio == -1:
 		return ""
-	var resto := linea.substr(i + 2).strip_edges()
-	# Sacar comillas (simples o dobles) si las hay.
-	resto = resto.lstrip("\"'").rstrip("\"'").strip_edges()
-	return resto
+	return _quitar_comillas(linea.substr(inicio).strip_edges())
+
+
+# Quita SOLO un par de comillas envolventes balanceadas (" o '), dejando intactas
+# las comillas internas o sueltas del mensaje (p. ej. «v2''» se conserva tal cual).
+func _quitar_comillas(s: String) -> String:
+	var t := s.strip_edges()
+	if t.length() >= 2:
+		var ini: String = t[0]
+		if (ini == "\"" or ini == "'") and t[t.length() - 1] == ini:
+			t = t.substr(1, t.length() - 2)
+	return t
 
 
 func _ids(arr: Array) -> Dictionary:

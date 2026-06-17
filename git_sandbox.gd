@@ -28,7 +28,14 @@ var _ej_label: Label
 var _ej_estado: Label
 var _ej_btn: Button
 var _ejercicio := 0
-var _ej_remoto_simulado := false
+# Progreso RELATIVO por ejercicio: cada paso se cuenta "hecho" por lo que pasa
+# DESPUÉS de entrar al paso, no por contadores absolutos (si no, explorar libre
+# adelanta y saltea la lección).
+var _base_commits := 0
+var _base_remoto := 0
+var _ej_pull_base := -1          # commits al entrar al paso del pull (-1 = no estamos en él)
+var _vio_status := false         # tipeó git status (paso guiado)
+var _vio_log := false            # tipeó git log (paso guiado)
 
 
 func _ready() -> void:
@@ -46,7 +53,11 @@ func _ready() -> void:
 func abrir() -> void:
 	modelo = GitMini.new()
 	_ejercicio = 0
-	_ej_remoto_simulado = false
+	_base_commits = 0
+	_base_remoto = 0
+	_ej_pull_base = -1
+	_vio_status = false
+	_vio_log = false
 	_consola_out.clear()
 	_log_info("Sandbox de git. Escribí comandos reales abajo. Empezá por: git init")
 	_refrescar()
@@ -220,7 +231,15 @@ func _on_enter(texto: String) -> void:
 	_consola_in.clear()
 	if t == "":
 		return
-	var r = modelo.ejecutar(t)
+	var r: Dictionary = modelo.ejecutar(t)
+	# Acreditamos los pasos guiados por el subcomando REALMENTE ejecutado sin error,
+	# no por el texto crudo: «git   status» (espacios extra) cuenta, «git statusfoo» (error) no.
+	var toks := t.split(" ", false)
+	var sub: String = toks[1] if toks.size() >= 2 else ""
+	if not r.error and sub == "status":
+		_vio_status = true
+	if not r.error and sub == "log":
+		_vio_log = true
 	_log_cmd(t)
 	if r.salida != "":
 		_log_salida(r.salida, r.error)
@@ -231,12 +250,12 @@ func _on_enter(texto: String) -> void:
 
 func _log_cmd(t: String) -> void:
 	# Eco del comando en un teal claro (buen contraste sobre el fondo oscuro).
-	var c := Tema.PRIMARIO.lerp(Color.WHITE, 0.45)
-	_consola_out.append_text("[color=#%s]$ %s[/color]\n" % [c.to_html(false), t])
+	_consola_out.append_text("[color=#%s]$ %s[/color]\n" % [Tema.PRIMARIO_CLARO.to_html(false), t])
 
 
 func _log_salida(s: String, error: bool) -> void:
-	var col := Tema.ERROR if error else Tema.FONDO
+	# ERROR_CLARO (no ERROR pleno) para que el feedback de error se lea bien sobre el fondo oscuro.
+	var col := Tema.ERROR_CLARO if error else Tema.FONDO
 	_consola_out.append_text("[color=#%s]%s[/color]\n" % [col.to_html(false), s])
 
 
@@ -272,7 +291,6 @@ func _nuevo_archivo() -> void:
 
 func _simular_remoto() -> void:
 	modelo.simular_remoto("mejora de un compañero")
-	_ej_remoto_simulado = true
 	_log_info("(alguien subió un commit a la nube — probá: git pull)")
 	_refrescar()
 	_chequear_ejercicio()
@@ -305,7 +323,7 @@ func _refrescar() -> void:
 func _resumen_commits(arr: Array) -> String:
 	if arr.is_empty():
 		return "sin commits"
-	var ultimo = arr[arr.size() - 1]
+	var ultimo: Dictionary = arr[arr.size() - 1]
 	return "%d commit(s) · último: «%s»" % [arr.size(), ultimo.msg]
 
 
@@ -334,22 +352,29 @@ func _fila_archivo(nombre: String, estado: String) -> Control:
 # Ejercicios guiados (Parte C)
 # ---------------------------------------------------------------------------
 func _ejercicios() -> Array:
-	# Cada uno: {texto, hecho: Callable(modelo)->bool}. El robot acompaña.
+	# Cada uno: {texto, hecho: Callable()->bool, [prepara_remoto]}. El robot acompaña.
+	# Los pasos 6/7/8 miden progreso RELATIVO (baselines capturados al entrar), para
+	# que la acción del paso se ejecute estando en el paso y no se saltee explorando.
 	return [
 		{"texto": "Iniciá el repositorio.  →  git init",
 			"hecho": func(): return modelo.iniciado},
+		{"texto": "Mirá en qué estado está todo.  →  git status",
+			"hecho": func(): return _vio_status},
 		{"texto": "Prepará los archivos para el primer commit.  →  git add .",
 			"hecho": func(): return not modelo.con_estado(GitMini.PREPARADO).is_empty() or modelo.commits.size() >= 1},
 		{"texto": "Hacé tu primer commit con un mensaje.  →  git commit -m \"...\"",
 			"hecho": func(): return modelo.commits.size() >= 1},
+		{"texto": "Mirá tu historial de commits.  →  git log",
+			"hecho": func(): return _vio_log},
 		{"texto": "Subilo a la nube.  →  git push",
 			"hecho": func(): return modelo.remoto.size() >= 1},
 		{"texto": "Hacé un cambio (tocá «✎ editar un archivo») y guardalo: git add + git commit.",
-			"hecho": func(): return modelo.commits.size() >= 2},
+			"hecho": func(): return modelo.commits.size() > _base_commits},
 		{"texto": "Subí ese commit nuevo.  →  git push",
-			"hecho": func(): return modelo.remoto.size() >= 2},
+			"hecho": func(): return modelo.remoto.size() > _base_remoto},
 		{"texto": "Alguien subió algo a la nube. Traelo.  →  git pull",
-			"hecho": func(): return _ej_remoto_simulado and modelo.atrasados() == 0},
+			"prepara_remoto": true,
+			"hecho": func(): return _ej_pull_base >= 0 and modelo.commits.size() > _ej_pull_base},
 		{"texto": "¡Listo! Ese es el flujo completo de git. Seguí practicando lo que quieras.",
 			"hecho": func(): return true},
 	]
@@ -359,17 +384,25 @@ func _mostrar_ejercicio() -> void:
 	var ejs := _ejercicios()
 	if _ejercicio >= ejs.size():
 		_ejercicio = ejs.size() - 1
-	var e = ejs[_ejercicio]
+	var e: Dictionary = ejs[_ejercicio]
 	_ej_label.text = "Ejercicio %d/%d:  %s" % [_ejercicio + 1, ejs.size(), e.texto]
-	# Al llegar al paso del pull, simulamos el commit remoto (una sola vez).
-	if _ejercicio == 6 and not _ej_remoto_simulado:
-		_simular_remoto()
+	# Baseline al entrar al paso: los pasos 6/7 se cuentan por lo que pase desde acá.
+	_base_commits = modelo.commits.size()
+	_base_remoto = modelo.remoto.size()
+	_ej_pull_base = -1
+	# Paso del pull (marcado con prepara_remoto en los datos, no por índice): garantizamos
+	# que SIEMPRE haya algo para traer y medimos el pull recién desde que se entra al paso,
+	# sin depender de si el usuario ya tocó el botón «simular cambio en la nube».
+	if e.get("prepara_remoto", false):
+		if modelo.atrasados() == 0:
+			_simular_remoto()
+		_ej_pull_base = modelo.commits.size()
 	_chequear_ejercicio()
 
 
 func _chequear_ejercicio() -> void:
 	var ejs := _ejercicios()
-	var e = ejs[_ejercicio]
+	var e: Dictionary = ejs[_ejercicio]
 	var hecho: bool = e.hecho.call()
 	_ej_estado.text = "✓" if hecho else "○"
 	_ej_estado.add_theme_color_override("font_color", Tema.EXITO if hecho else Tema.PRIMARIO)
@@ -378,7 +411,11 @@ func _chequear_ejercicio() -> void:
 	_ej_btn.disabled = not hecho and not ultimo
 	_ej_btn.modulate.a = 1.0 if (hecho or ultimo) else 0.4
 	if _robot:
-		_robot.set_mood("feliz" if hecho else "pensando")
+		# El último paso (flujo completo) cierra con fiesta; los demás, feliz/pensando.
+		if hecho and ultimo:
+			_robot.set_mood("fiesta")
+		else:
+			_robot.set_mood("feliz" if hecho else "pensando")
 
 
 func _ejercicio_siguiente() -> void:
@@ -394,12 +431,7 @@ func _ejercicio_siguiente() -> void:
 # Helpers de widgets
 # ---------------------------------------------------------------------------
 func _lbl(texto: String, fuente: Font, tam: int, color: Color) -> Label:
-	var l := Label.new()
-	l.text = texto
-	l.add_theme_font_override("font", fuente)
-	l.add_theme_font_size_override("font_size", tam)
-	l.add_theme_color_override("font_color", color)
-	return l
+	return UiKit.label(texto, fuente, tam, color)
 
 
 func _panel(fondo: Color, borde: Color) -> PanelContainer:
@@ -423,26 +455,4 @@ func _sep() -> HSeparator:
 
 
 func _boton(txt: String, acento: bool) -> Button:
-	var b := Button.new()
-	b.text = txt
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_override("font", _sans)
-	var normal := StyleBoxFlat.new()
-	normal.set_corner_radius_all(9)
-	normal.set_content_margin_all(9)
-	if acento:
-		normal.bg_color = Tema.PRIMARIO
-		b.add_theme_color_override("font_color", Color.WHITE)
-		b.add_theme_color_override("font_hover_color", Color.WHITE)
-	else:
-		normal.bg_color = Tema.PANEL
-		normal.border_color = Tema.PANEL_BORDE
-		normal.set_border_width_all(1)
-		b.add_theme_color_override("font_color", Tema.TEXTO)
-		b.add_theme_color_override("font_hover_color", Tema.PRIMARIO)
-	var hover := normal.duplicate()
-	hover.bg_color = (Tema.PRIMARIO.lerp(Color.BLACK, 0.08) if acento else Tema.PRIMARIO_TENUE)
-	b.add_theme_stylebox_override("normal", normal)
-	b.add_theme_stylebox_override("hover", hover)
-	b.add_theme_stylebox_override("pressed", hover)
-	return b
+	return UiKit.boton(txt, acento, _sans)

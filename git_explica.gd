@@ -196,39 +196,11 @@ func _mostrar_paso() -> void:
 # Helpers de widgets
 # ---------------------------------------------------------------------------
 func _label(texto: String, fuente: Font, tam: int, color: Color, halign := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
-	var l := Label.new()
-	l.text = texto
-	l.add_theme_font_override("font", fuente)
-	l.add_theme_font_size_override("font_size", tam)
-	l.add_theme_color_override("font_color", color)
-	l.horizontal_alignment = halign
-	return l
+	return UiKit.label(texto, fuente, tam, color, halign)
 
 
 func _boton(txt: String, acento: bool) -> Button:
-	var b := Button.new()
-	b.text = txt
-	b.focus_mode = Control.FOCUS_NONE
-	b.add_theme_font_override("font", _sans)
-	var normal := StyleBoxFlat.new()
-	normal.set_corner_radius_all(10)
-	normal.set_content_margin_all(10)
-	if acento:
-		normal.bg_color = Tema.PRIMARIO
-		b.add_theme_color_override("font_color", Color.WHITE)
-		b.add_theme_color_override("font_hover_color", Color.WHITE)
-	else:
-		normal.bg_color = Tema.PANEL
-		normal.border_color = Tema.PANEL_BORDE
-		normal.set_border_width_all(1)
-		b.add_theme_color_override("font_color", Tema.TEXTO)
-		b.add_theme_color_override("font_hover_color", Tema.PRIMARIO)
-	var hover := normal.duplicate()
-	hover.bg_color = (Tema.PRIMARIO.lerp(Color.BLACK, 0.08) if acento else Tema.PRIMARIO_TENUE)
-	b.add_theme_stylebox_override("normal", normal)
-	b.add_theme_stylebox_override("hover", hover)
-	b.add_theme_stylebox_override("pressed", hover)
-	return b
+	return UiKit.boton(txt, acento, _sans)
 
 
 # ---------------------------------------------------------------------------
