@@ -64,5 +64,42 @@ func _initialize() -> void:
 	assert(raro.contains("void Resolver"), "fallback: debería generar igual")
 	assert(raro.count("{") == raro.count("}"), "fallback: llaves balanceadas")
 
-	print("OK: C# generado para los 12 niveles, idiomático y sin romper")
+	# --- Cobertura por TRACK: generar el código de CADA solución de referencia ---
+	# Track C: los 12 base con el generador de C. Track C#: los 12 + avanzados con C#.
+	var por_track := {
+		"c": Niveles.orden(),
+		"csharp": Niveles.orden() + Niveles.avanzados(),
+	}
+	for tr in por_track:
+		for id in por_track[tr]:
+			var nivel = Niveles.cargar(id)
+			var sol = Soluciones.para(id)
+			assert(not sol.is_empty(), "%s: falta solución de referencia" % id)
+			var code: String = (Cc.desde_programa(sol, nivel.slots, id, nivel.descripcion) if tr == "c" \
+				else Csharp.desde_programa(sol, nivel.slots, id, nivel.descripcion))
+			var firma := "void resolver(" if tr == "c" else "void Resolver("
+			assert(code.contains(firma), "%s/%s: falta la firma" % [tr, id])
+			assert(code.count("{") == code.count("}"), "%s/%s: llaves desbalanceadas" % [tr, id])
+			assert(not code.contains("goto"), "%s/%s: no debería usar goto (patrón reconocido)" % [tr, id])
+			assert(not code.contains("null"), "%s/%s: apareció 'null'" % [tr, id])
+			assert(code.contains("int mano"), "%s/%s: no declara la mano" % [tr, id])
+			assert(code.begins_with("// "), "%s/%s: falta el comentario de qué hace" % [tr, id])
+	print("tracks C y C# generan el código de todas las soluciones sin romper")
+
+	# C idiomático: índice sobre arreglo + printf.
+	var c_inv := Cc.desde_programa(Soluciones.para("invertir_trio"), 2)
+	assert(c_inv.contains("void resolver(int entrada[], int n)"), "C: firma")
+	assert(c_inv.contains("int i = 0;"), "C: índice de lectura")
+	assert(c_inv.contains("int mano = entrada[i++];"), "C: agarrá -> entrada[i++]")
+	assert(c_inv.contains("printf(\"%d\\n\", mano);"), "C: soltá -> printf")
+	assert(Cc.desde_programa(Soluciones.para("b3_eco_infinito"), 0).contains("while (i < n)"), "C: loop -> while (i < n)")
+	assert(Cc.desde_programa(Soluciones.para("b4_filtrar_ceros"), 0).contains("if (mano == 0) continue;"), "C: continue")
+
+	# Avanzados (track C#): salen estructurados (while / if), no goto.
+	var av := Csharp.desde_programa(Soluciones.para("invertir_cuarteto"), 3)
+	assert(av.contains("while (entrada.Count > 0)") and av.contains("memoria2"), "avanzado invertir_cuarteto")
+	assert(Csharp.desde_programa(Soluciones.para("pares_iguales_doble"), 1).contains("if (mano == 0)"),
+		"avanzado pares_iguales_doble: branch")
+
+	print("OK: C y C# generados para sus tracks (12 base + avanzados), sin romper")
 	quit()

@@ -24,13 +24,35 @@ func _initialize() -> void:
 	await _esperar(8)
 
 	await _shot_inicio()
+	await _shot_ux()
 	await _shot_como()
 	await _shot_tutorial()
 	await _shot_corrida_y_win()
-	await _shot_csharp()
+	await _shot_codigo("c", "invertir_trio", "shot_c.png")
+	await _shot_codigo("csharp", "invertir_cuarteto", "shot_csharp.png")
 
 	print("listo: screenshots guardados en shots/")
 	quit()
+
+
+# Modales de UX estándar (sobre el inicio): "Acerca de" y "Reiniciar progreso".
+func _shot_ux() -> void:
+	escena._acerca_de()
+	await _esperar(8)
+	await _guardar("shot_acerca.png")
+	_cerrar_modal_top()
+	await _esperar(2)
+	escena._reiniciar_progreso()
+	await _esperar(8)
+	await _guardar("shot_reiniciar.png")
+	_cerrar_modal_top()              # cancelamos (no reseteamos de verdad)
+	await _esperar(2)
+
+
+func _cerrar_modal_top() -> void:
+	var n = escena.get_child_count()
+	if n > 0 and escena.get_child(n - 1) is Control:
+		escena.get_child(n - 1).queue_free()
 
 
 # Pantalla "Cómo funciona la máquina" en el paso "guardá" (valor en memoria).
@@ -100,11 +122,15 @@ func _shot_corrida_y_win() -> void:
 # Panel "Ver en C#" sobre el nivel más interesante (pares_iguales: while + if).
 # Cargamos el programa de referencia DIRECTO (agregar_op autonombra etiquetas
 # L1/L2 y no fija destinos de salto por nombre; acá queremos el programa exacto).
-func _shot_csharp() -> void:
+# Panel de código en un track + nivel dado. Carga el programa de referencia directo.
+func _shot_codigo(tr: String, id: String, archivo: String) -> void:
 	escena._cerrar_csharp()
+	escena.track = tr
+	escena.orden = Niveles.orden_track(tr)
+	escena._refrescar_track_ui()
 	escena.inicio_capa.visible = false
-	var id := "pares_iguales"
-	escena._cargar_indice(escena.orden.find(id))
+	var idx = escena.orden.find(id)
+	escena._cargar_indice(idx if idx >= 0 else 0)
 	await _esperar(4)
 	escena.programa = Soluciones.para(id).duplicate(true)
 	escena._repintar_programa()
@@ -112,7 +138,8 @@ func _shot_csharp() -> void:
 	await _esperar(4)
 	escena._toggle_csharp()
 	await _esperar(8)
-	await _guardar("shot_csharp.png")
+	await _guardar(archivo)
+	escena._cerrar_csharp()
 	await _esperar(2)
 
 

@@ -82,16 +82,41 @@ static func desde_dict(data: Dictionary) -> Nivel:
 
 
 # Lista los ids de nivel disponibles en res://niveles/ (sin extension).
-# Excluye orden.json, que no es un nivel sino el orden de juego.
+# Excluye los archivos de orden (orden / orden_avanzado), que no son niveles.
 static func listar() -> Array:
 	var ids := []
 	var d := DirAccess.open("res://niveles")
 	if d:
 		for archivo in d.get_files():
-			if archivo.ends_with(".json") and archivo.get_basename() != "orden":
-				ids.append(archivo.get_basename())
+			var base := archivo.get_basename()
+			if archivo.ends_with(".json") and base != "orden" and base != "orden_avanzado":
+				ids.append(base)
 	ids.sort()
 	return ids
+
+
+# Niveles avanzados (aditivos, solo track C#): lista en res://niveles/orden_avanzado.json.
+static func avanzados() -> Array:
+	var ruta := "res://niveles/orden_avanzado.json"
+	if FileAccess.file_exists(ruta):
+		var f := FileAccess.open(ruta, FileAccess.READ)
+		if f:
+			var data = JSON.parse_string(f.get_as_text())
+			f.close()
+			if typeof(data) == TYPE_ARRAY:
+				var ids := []
+				for x in data:
+					ids.append(str(x))
+				return ids
+	return []
+
+
+# Orden de juego según el track: "c" = los 12 fundamentos; "csharp" = los 12 + avanzados.
+static func orden_track(track: String) -> Array:
+	var base := orden()
+	if track == "csharp":
+		return base + avanzados()
+	return base
 
 
 # Orden de juego curado (data): lista de ids en res://niveles/orden.json.

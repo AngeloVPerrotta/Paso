@@ -1,0 +1,12 @@
+{
+  "id": "restar_trio",
+  "nombre": "Restar el trío",
+  "descripcion": "Entran de a tres (a, b, c). Sacá a − b − c.",
+  "slots": 3,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "RESTAR", "SALTAR", "ETIQUETA"],
+  "casos": [
+    { "entrada": [10, 3, 2], "salida_esperada": [5] },
+    { "entrada": [20, 5, 5], "salida_esperada": [10] }
+  ],
+  "par": { "instrucciones": 11, "pasos": 22 }
+}

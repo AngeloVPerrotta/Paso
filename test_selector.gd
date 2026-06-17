@@ -6,6 +6,7 @@ extends SceneTree
 #   godot --headless --script test_selector.gd
 
 func _initialize() -> void:
+	Puntajes.set_track("c")          # determinista: el track C son los 12 niveles base
 	var escena = load("res://main.tscn").instantiate()
 	get_root().add_child(escena)
 	await process_frame

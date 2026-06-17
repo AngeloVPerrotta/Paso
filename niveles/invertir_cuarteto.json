@@ -1,0 +1,12 @@
+{
+  "id": "invertir_cuarteto",
+  "nombre": "Invertir el cuarteto",
+  "descripcion": "Entran de a cuatro. Sacalos en orden inverso.",
+  "slots": 3,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "SALTAR", "ETIQUETA"],
+  "casos": [
+    { "entrada": [1, 2, 3, 4], "salida_esperada": [4, 3, 2, 1] },
+    { "entrada": [5, 6, 7, 8], "salida_esperada": [8, 7, 6, 5] }
+  ],
+  "par": { "instrucciones": 15, "pasos": 30 }
+}

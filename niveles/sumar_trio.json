@@ -1,0 +1,12 @@
+{
+  "id": "sumar_trio",
+  "nombre": "Sumar el trío",
+  "descripcion": "Entran de a tres. Sacá la suma de cada trío.",
+  "slots": 1,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "SUMAR", "SALTAR", "ETIQUETA"],
+  "casos": [
+    { "entrada": [1, 2, 3, 10, 20, 30], "salida_esperada": [6, 60] },
+    { "entrada": [5, 5, 5], "salida_esperada": [15] }
+  ],
+  "par": { "instrucciones": 9, "pasos": 27 }
+}

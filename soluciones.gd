@@ -127,6 +127,69 @@ const POR_ID := {
 		["SOLTAR", null],
 		["SALTAR", "inicio"],
 	],
+
+	# --- Niveles avanzados (track C#) ---
+
+	# Sumar el trío: por cada (a,b,c) sale a+b+c. (acumula en slot 0)
+	"sumar_trio": [
+		["ETIQUETA", "inicio"],
+		["TOMAR", null], ["GUARDAR", 0],
+		["TOMAR", null], ["SUMAR", 0], ["GUARDAR", 0],
+		["TOMAR", null], ["SUMAR", 0],
+		["SOLTAR", null],
+		["SALTAR", "inicio"],
+	],
+
+	# Restar el trío: por cada (a,b,c) sale a-b-c. (a,b,c en slots 0,1,2)
+	"restar_trio": [
+		["ETIQUETA", "inicio"],
+		["TOMAR", null], ["GUARDAR", 0],
+		["TOMAR", null], ["GUARDAR", 1],
+		["TOMAR", null], ["GUARDAR", 2],
+		["COPIAR", 0], ["RESTAR", 1], ["RESTAR", 2],
+		["SOLTAR", null],
+		["SALTAR", "inicio"],
+	],
+
+	# Invertir el cuarteto: por cada (a,b,c,d) salen d,c,b,a. (a,b,c en slots 0,1,2; d en mano)
+	"invertir_cuarteto": [
+		["ETIQUETA", "inicio"],
+		["TOMAR", null], ["GUARDAR", 0],
+		["TOMAR", null], ["GUARDAR", 1],
+		["TOMAR", null], ["GUARDAR", 2],
+		["TOMAR", null], ["SOLTAR", null],
+		["COPIAR", 2], ["SOLTAR", null],
+		["COPIAR", 1], ["SOLTAR", null],
+		["COPIAR", 0], ["SOLTAR", null],
+		["SALTAR", "inicio"],
+	],
+
+	# Filtrar y duplicar: descarta ceros; cada distinto de cero sale dos veces.
+	"filtrar_duplicar": [
+		["ETIQUETA", "inicio"],
+		["TOMAR", null],
+		["SALTAR_SI_CERO", "inicio"],
+		["GUARDAR", 0],
+		["SOLTAR", null],
+		["COPIAR", 0],
+		["SOLTAR", null],
+		["SALTAR", "inicio"],
+	],
+
+	# Pares iguales, doble: si a==b saca el valor dos veces; si no, descarta el par.
+	"pares_iguales_doble": [
+		["ETIQUETA", "inicio"],
+		["TOMAR", null],
+		["GUARDAR", 0],
+		["TOMAR", null],
+		["RESTAR", 0],
+		["SALTAR_SI_CERO", "iguales"],
+		["SALTAR", "inicio"],
+		["ETIQUETA", "iguales"],
+		["COPIAR", 0], ["SOLTAR", null],
+		["COPIAR", 0], ["SOLTAR", null],
+		["SALTAR", "inicio"],
+	],
 }
 
 

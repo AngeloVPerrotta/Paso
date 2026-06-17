@@ -12,11 +12,14 @@ extends Control
 #   "fiesta"    récord (igual que feliz + salto más alto, brillo de antena)
 #   "animo"     falló pero alentador (nunca triste): guiño y media sonrisa
 
-const COL_CUERPO := Color("e9e2d4")     # gris-crema cálido
-const COL_BORDE := Color("c8bfad")
-const COL_OJO := Color("3d3a34")
-const COL_ACENTO := Color("d97757")     # coral: antena, cachetes
-const COL_PANEL := Color("fbf9f4")
+# Colores desde la paleta única (tema.gd). El DISEÑO no cambia, solo el color:
+# cuerpo neutro cálido + acento ámbar (antena, cachetes, luz de pecho).
+const COL_CUERPO := Tema.CELDA          # gris-arena cálido (neutro de la paleta)
+const COL_BORDE := Tema.CELDA_BORDE
+const COL_OJO := Tema.TEXTO
+const COL_ACENTO := Tema.CALIDO         # ámbar: antena, cachetes, pecho
+const COL_PANEL := Tema.PANEL
+const COL_VISOR := Color("232220")      # visor oscuro = texto de la paleta
 
 var mood := "idle"
 
@@ -83,7 +86,7 @@ func _draw() -> void:
 
 	# Visor (zona oscura para los ojos), redondeado.
 	var visor := Rect2(cx - 20, cy - 26, 40, 24)
-	_rect_redondeado(visor, 9.0, Color("2b2925"))
+	_rect_redondeado(visor, 9.0, COL_VISOR)
 
 	# --- Ojos ---
 	var ojo_y := cy - 14
@@ -145,7 +148,7 @@ func _ojo_redondo(c: Vector2, abierto: float) -> void:
 	draw_circle(c, r * 0.55, COL_OJO)
 	if abierto < 1.0:
 		var tapa := r * (1.0 - abierto)
-		draw_rect(Rect2(c.x - r, c.y - r, r * 2.0, tapa), Color("2b2925"))
+		draw_rect(Rect2(c.x - r, c.y - r, r * 2.0, tapa), COL_VISOR)
 
 
 # Ojo "feliz" ^ : un arco.

@@ -70,19 +70,24 @@ var programa_run: Array = []            # resuelto: saltos por indice (para ejec
 var entrada_inicial: Array = []
 var cantidad_slots := 0
 
-# --- Paleta calida-minimalista (estilo UX Claude: off-white, un solo acento coral) ---
-const COL_FONDO := Color("f4f1ea")        # off-white calido
-const COL_PANEL := Color("fbf9f4")        # panel casi blanco
-const COL_PANEL_BORDE := Color("e7e1d5")
-const COL_CELDA := Color("efeadf")
-const COL_CELDA_BORDE := Color("ddd5c6")
-const COL_TEXTO := Color("3d3a34")        # gris calido oscuro
-const COL_TENUE := Color("9b958a")        # apagado
-const COL_ACENTO := Color("d97757")       # coral/clay: EL acento
-const COL_ACENTO_TENUE := Color("d97757", 0.14)
-const COL_MANO := Color("d97757")
-const COL_OK := Color("6f9a6a")           # verde calmo, solo para ✓ sutiles
-const COL_ERROR := Color("c25a4e")        # clay-rojo apagado (nunca estridente)
+# --- Paleta: alias locales que apuntan a Tema (única fuente de verdad, ver tema.gd) ---
+# Identidad propia cálida: arena + verde-azulado + verde éxito + ámbar de detalle.
+const COL_FONDO := Tema.FONDO
+const COL_PANEL := Tema.PANEL
+const COL_PANEL_BORDE := Tema.PANEL_BORDE
+const COL_CELDA := Tema.CELDA
+const COL_CELDA_BORDE := Tema.CELDA_BORDE
+const COL_TEXTO := Tema.TEXTO
+const COL_TENUE := Tema.TENUE
+const COL_ACENTO := Tema.PRIMARIO         # el acento ahora es el verde-azulado
+const COL_ACENTO_TENUE := Tema.PRIMARIO_TENUE
+const COL_MANO := Tema.PRIMARIO
+const COL_OK := Tema.EXITO
+const COL_ERROR := Tema.ERROR
+
+# --- Identidad / enlaces ---
+const VERSION := "1.0"
+const URL_REPORTAR_BUG := "https://github.com/AngeloVPerrotta/Paso/issues/new"
 
 # Velocidades: Run rapido / Step lento. paso = seg por tick; anim = duracion de animacion.
 const VELOCIDADES := [
@@ -134,9 +139,15 @@ var _btn_continuar: Button
 var _inicio_robot: Robot
 var _arrancado := false                 # true tras el boot: a partir de ahi guardamos "ultimo nivel"
 
-# --- Panel "Ver en C#" ---
+# --- Track: "c" (fundamentos) | "csharp" (avanzado). Define niveles + lenguaje del panel. ---
+var track := "c"
+var _inicio_track_label: Label          # indicador "estás en: …" en el inicio
+
+# --- Panel "Ver en C / C#" ---
 var csharp_capa: Control
 var csharp_texto: TextEdit
+var csharp_titulo: Label                 # "Tu solución en C / C#"
+var boton_codigo: Button                 # "‹/› Ver en C / C#" (barra de controles)
 
 # --- "Cómo funciona la máquina" (intro demo) + modo libre ---
 var como_capa: Control
@@ -172,9 +183,11 @@ func _ready() -> void:
 	sfx = Sfx.new()
 	add_child(sfx)
 
-	orden = Niveles.orden()
+	track = Puntajes.track()
+	orden = Niveles.orden_track(track)
 	_construir_ui()
 	_construir_inicio()
+	_refrescar_track_ui()
 	_cargar_indice(0)
 	_mostrar_inicio()
 	_arrancado = true
@@ -525,10 +538,10 @@ func _construir_controles() -> Control:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fila.add_child(sp)
 
-	var b_csharp := _boton_accion("‹/› Ver en C#", false)
-	b_csharp.tooltip_text = "Mirá tu solución como código C# real."
-	b_csharp.pressed.connect(_toggle_csharp)
-	fila.add_child(b_csharp)
+	boton_codigo = _boton_accion("‹/› Ver en C#", false)
+	boton_codigo.tooltip_text = "Mirá tu solución como código real."
+	boton_codigo.pressed.connect(_toggle_csharp)
+	fila.add_child(boton_codigo)
 
 	var b_validar := _boton_accion("✓ Validar", true)
 	b_validar.pressed.connect(_on_validar_pressed)
@@ -588,11 +601,23 @@ func _construir_inicio() -> void:
 	esp.custom_minimum_size = Vector2(0, 18)
 	v.add_child(esp)
 
-	var b_jugar := _boton_accion("▶  Jugar", true)
-	b_jugar.custom_minimum_size = Vector2(240, 48)
-	b_jugar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	b_jugar.pressed.connect(_jugar)
-	v.add_child(b_jugar)
+	# Elección de track, framed como progresión: C = fundamentos, C# = avanzado.
+	var b_c := _boton_accion("Empezá en C  ·  fundamentos", true)
+	b_c.custom_minimum_size = Vector2(280, 46)
+	b_c.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	b_c.pressed.connect(func(): _elegir_track("c"))
+	v.add_child(b_c)
+
+	var b_cs := _boton_accion("Seguí en C#  ·  avanzado", false)
+	b_cs.custom_minimum_size = Vector2(280, 46)
+	b_cs.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	b_cs.pressed.connect(func(): _elegir_track("csharp"))
+	v.add_child(b_cs)
+
+	_inicio_track_label = _etiqueta("", 13, COL_TENUE)
+	_inicio_track_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_inicio_track_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(_inicio_track_label)
 
 	_btn_continuar = _boton_accion("Continuar", false)
 	_btn_continuar.custom_minimum_size = Vector2(240, 44)
@@ -606,10 +631,33 @@ func _construir_inicio() -> void:
 	b_como.pressed.connect(_abrir_como_funciona)
 	v.add_child(b_como)
 
+	var esp2 := Control.new()
+	esp2.custom_minimum_size = Vector2(0, 10)
+	v.add_child(esp2)
+
+	# Pie de UX estándar: enlaces sutiles (acerca de · reportar bug · reiniciar).
+	var pie := HBoxContainer.new()
+	pie.add_theme_constant_override("separation", 8)
+	pie.alignment = BoxContainer.ALIGNMENT_CENTER
+	pie.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var l_acerca := _boton_link("Acerca de")
+	l_acerca.pressed.connect(_acerca_de)
+	pie.add_child(l_acerca)
+	pie.add_child(_etiqueta("·", 14, COL_TENUE))
+	var l_bug := _boton_link("Reportar un bug")
+	l_bug.pressed.connect(_reportar_bug)
+	pie.add_child(l_bug)
+	pie.add_child(_etiqueta("·", 14, COL_TENUE))
+	var l_reset := _boton_link("Reiniciar progreso")
+	l_reset.pressed.connect(_reiniciar_progreso)
+	pie.add_child(l_reset)
+	v.add_child(pie)
+
 
 func _mostrar_inicio() -> void:
 	_detener()
 	_cerrar_tutorial()
+	_refrescar_track_ui()
 	if _btn_continuar:
 		var u := Puntajes.ultimo_nivel()
 		var idx := orden.find(u)
@@ -640,6 +688,99 @@ func _continuar() -> void:
 
 
 # ---------------------------------------------------------------------------
+# UX estándar (desde el pie del inicio): acerca de, reportar bug, reiniciar.
+# ---------------------------------------------------------------------------
+
+# Overlay modal genérico: velo + tarjeta centrada con la paleta. Devuelve el VBox
+# interno donde el caller mete el contenido. Tocar el velo lo cierra. Se libera solo.
+func _abrir_modal(ancho_min: int) -> VBoxContainer:
+	var capa := Control.new()
+	capa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	capa.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(capa)
+	capa.move_to_front()
+
+	var back := ColorRect.new()
+	back.color = Tema.VELO
+	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	back.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed:
+			capa.queue_free())
+	capa.add_child(back)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	capa.add_child(center)
+
+	var card := _panel(COL_PANEL)
+	card.custom_minimum_size = Vector2(ancho_min, 0)
+	center.add_child(card)
+
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	v.set_meta("capa", capa)        # para que el caller pueda cerrar (queue_free)
+	card.add_child(v)
+	return v
+
+
+func _reportar_bug() -> void:
+	OS.shell_open(URL_REPORTAR_BUG)
+
+
+func _acerca_de() -> void:
+	var v := _abrir_modal(440)
+	var capa: Control = v.get_meta("capa")
+	v.add_child(_etiqueta("Acerca de Paso", 22, COL_TEXTO))
+	var cuerpo := Label.new()
+	cuerpo.text = "Paso es un juego de lógica: armás un programita, paso a paso, " \
+		+ "para que la máquina resuelva cada nivel. Aprendés a pensar como un " \
+		+ "programa, sin escribir código.\n\nVersión %s" % VERSION
+	cuerpo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cuerpo.custom_minimum_size = Vector2(400, 0)
+	cuerpo.add_theme_font_override("font", fuente_sans)
+	cuerpo.add_theme_font_size_override("font_size", 15)
+	cuerpo.add_theme_color_override("font_color", COL_TENUE)
+	v.add_child(cuerpo)
+	var cerrar := _boton_accion("Cerrar", true)
+	cerrar.pressed.connect(capa.queue_free)
+	v.add_child(cerrar)
+
+
+func _reiniciar_progreso() -> void:
+	var v := _abrir_modal(440)
+	var capa: Control = v.get_meta("capa")
+	v.add_child(_etiqueta("¿Reiniciar progreso?", 22, COL_TEXTO))
+	var cuerpo := Label.new()
+	cuerpo.text = "Se borran tus mejores puntajes y el avance de los tutoriales. " \
+		+ "El juego vuelve a estar como recién instalado. Esto no se puede deshacer."
+	cuerpo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cuerpo.custom_minimum_size = Vector2(400, 0)
+	cuerpo.add_theme_font_override("font", fuente_sans)
+	cuerpo.add_theme_font_size_override("font_size", 15)
+	cuerpo.add_theme_color_override("font_color", COL_TENUE)
+	v.add_child(cuerpo)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var cancelar := _boton_accion("Cancelar", false)
+	cancelar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cancelar.pressed.connect(capa.queue_free)
+	row.add_child(cancelar)
+	var confirmar := _boton_accion("Sí, borrar todo", true)
+	confirmar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	confirmar.pressed.connect(func():
+		Puntajes.borrar_todo()
+		resueltos.clear()
+		_repintar_cabecera()
+		_repintar_progreso()
+		capa.queue_free()
+		_mostrar_inicio())          # refresca "Continuar" (desaparece) = estado fresco
+	row.add_child(confirmar)
+	v.add_child(row)
+
+
+# ---------------------------------------------------------------------------
 # Panel "Ver en C#": muestra el programa actual como C# real (Csharp.generar).
 # Cara de editor (mono, cálido), abre/cierra. El modelo sale de programa_modelo().
 # ---------------------------------------------------------------------------
@@ -652,7 +793,7 @@ func _construir_csharp() -> void:
 
 	# Fondo tenue; clic afuera cierra.
 	var back := ColorRect.new()
-	back.color = Color(0.12, 0.11, 0.10, 0.42)
+	back.color = Tema.VELO
 	back.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	back.gui_input.connect(func(e):
 		if e is InputEventMouseButton and e.pressed:
@@ -673,13 +814,13 @@ func _construir_csharp() -> void:
 	card.add_child(v)
 
 	var hrow := HBoxContainer.new()
-	var titulo := Label.new()
-	titulo.text = "Tu solución en C#"
-	titulo.add_theme_font_override("font", fuente_sans)
-	titulo.add_theme_font_size_override("font_size", 20)
-	titulo.add_theme_color_override("font_color", COL_TEXTO)
-	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hrow.add_child(titulo)
+	csharp_titulo = Label.new()
+	csharp_titulo.text = "Tu solución en C#"
+	csharp_titulo.add_theme_font_override("font", fuente_sans)
+	csharp_titulo.add_theme_font_size_override("font_size", 20)
+	csharp_titulo.add_theme_color_override("font_color", COL_TEXTO)
+	csharp_titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hrow.add_child(csharp_titulo)
 	var cerrar := _boton_accion("✕", false)
 	cerrar.custom_minimum_size = Vector2(40, 36)
 	cerrar.pressed.connect(_cerrar_csharp)
@@ -711,7 +852,8 @@ func _toggle_csharp() -> void:
 	if csharp_capa.visible:
 		_cerrar_csharp()
 		return
-	csharp_texto.text = Csharp.generar(programa_modelo())
+	# El generador y el título dependen del track.
+	csharp_texto.text = (Cc.generar(programa_modelo()) if track == "c" else Csharp.generar(programa_modelo()))
 	csharp_capa.visible = true
 	csharp_capa.move_to_front()
 	if sfx:
@@ -720,6 +862,26 @@ func _toggle_csharp() -> void:
 
 func _cerrar_csharp() -> void:
 	csharp_capa.visible = false
+
+
+# Ajusta los textos que dependen del track (botón del panel, título, indicador del inicio).
+func _refrescar_track_ui() -> void:
+	var es_c := track == "c"
+	if boton_codigo:
+		boton_codigo.text = "‹/› Ver en C" if es_c else "‹/› Ver en C#"
+	if csharp_titulo:
+		csharp_titulo.text = "Tu solución en C" if es_c else "Tu solución en C#"
+	if _inicio_track_label:
+		_inicio_track_label.text = "Estás en: C · fundamentos" if es_c else "Estás en: C# · avanzado"
+
+
+func _elegir_track(t: String) -> void:
+	track = t
+	Puntajes.set_track(t)
+	orden = Niveles.orden_track(t)
+	_refrescar_track_ui()
+	inicio_capa.visible = false
+	_cargar_indice(0)
 
 
 # ---------------------------------------------------------------------------
@@ -1940,6 +2102,20 @@ func _boton_nav(txt: String) -> Button:
 	return b
 
 
+# Botón estilo "enlace": sin fondo, texto tenue que se vuelve acento al pasar.
+func _boton_link(txt: String) -> Button:
+	var b := Button.new()
+	b.text = txt
+	b.flat = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_override("font", fuente_sans)
+	b.add_theme_font_size_override("font_size", 14)
+	b.add_theme_color_override("font_color", COL_TENUE)
+	b.add_theme_color_override("font_hover_color", COL_ACENTO)
+	b.add_theme_color_override("font_pressed_color", COL_ACENTO)
+	return b
+
+
 func _boton_mini(txt: String) -> Button:
 	var b := Button.new()
 	b.text = txt
@@ -1986,9 +2162,9 @@ func _str_valor(v) -> String:
 # Inner classes cosmeticas (onda de celebracion + spotlight del tutorial).
 # ---------------------------------------------------------------------------
 
-# Onda: anillo coral que se expande y se desvanece. Cosmetico.
+# Onda: anillo (color primario) que se expande y se desvanece. Cosmetico.
 class Onda extends Control:
-	var color := Color("d97757")
+	var color := Tema.PRIMARIO
 	var _centro := Vector2.ZERO
 	var _radio := 0.0
 	var _alpha := 0.0
@@ -2014,8 +2190,8 @@ class Onda extends Control:
 #   mostrar_velo=false  -> no oscurece ni bloquea nada (último paso: mirás el juego).
 class Spotlight extends Control:
 	var objetivo := Rect2()
-	var velo := Color(0.12, 0.11, 0.10, 0.62)
-	var marco := Color("d97757")
+	var velo := Color(0.14, 0.13, 0.11, 0.62)
+	var marco := Tema.PRIMARIO
 	var permitir_hueco := false
 	var mostrar_velo := true
 

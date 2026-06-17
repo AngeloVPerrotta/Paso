@@ -79,6 +79,31 @@ func _initialize() -> void:
 	assert(n_mal.par_instrucciones == 0 and n_mal.par_pasos == 0, "par no-dict deberia degradar a 0")
 	print("loader tolera entrada=null y par no-dict")
 
+	# --- Niveles avanzados (track C#): aditivos, validados acá ---
+	print("== Niveles avanzados (track C#) ==")
+	var avanzados := Niveles.avanzados()
+	assert(not avanzados.is_empty(), "deberia haber niveles avanzados")
+	for id in avanzados:
+		var nivel = Niveles.cargar(id)
+		assert(nivel != null, "no carga avanzado: %s" % id)
+		var sol = Soluciones.para(id)
+		assert(not sol.is_empty(), "falta solucion de referencia: %s" % id)
+		var r = Validador.validar(nivel, sol)
+		var ok_par: bool = r.score.instrucciones == nivel.par_instrucciones and r.score.pasos == nivel.par_pasos
+		print("%-20s paso=%-5s  medido(i=%2d p=%3d)  json(i=%2d p=%3d)  %s" % [
+			id, str(r.paso), r.score.instrucciones, r.score.pasos,
+			nivel.par_instrucciones, nivel.par_pasos, "ok" if ok_par else "<<< DIFIERE"])
+		if not r.paso:
+			todo_ok = false
+			if r.motivo != "":
+				print("   motivo: ", r.motivo)
+			for d in r.detalle_por_caso:
+				if not d.ok:
+					print("   FALLA entrada=%s obtuvo=%s esperaba=%s" % [
+						str(d.entrada), str(d.salida_obtenida), str(d.salida_esperada)])
+		assert(r.paso, "la solucion de referencia de %s no paso" % id)
+		assert(ok_par, "el par de %s no coincide con lo medido (corregir el JSON)" % id)
+
 	if todo_ok:
 		print("OK: soluciones de ejemplo pasan y los rechazos andan")
 	quit()

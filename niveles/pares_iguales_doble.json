@@ -1,0 +1,12 @@
+{
+  "id": "pares_iguales_doble",
+  "nombre": "Pares iguales, doble",
+  "descripcion": "La cola viene de a pares; si son iguales, sacá ese valor dos veces; si no, descartá el par.",
+  "slots": 1,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "RESTAR", "SALTAR", "SALTAR_SI_CERO", "ETIQUETA"],
+  "casos": [
+    { "entrada": [3, 3, 5, 2], "salida_esperada": [3, 3] },
+    { "entrada": [4, 4, 4, 4], "salida_esperada": [4, 4, 4, 4] }
+  ],
+  "par": { "instrucciones": 11, "pasos": 36 }
+}

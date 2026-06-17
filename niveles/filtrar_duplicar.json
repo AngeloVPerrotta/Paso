@@ -1,0 +1,12 @@
+{
+  "id": "filtrar_duplicar",
+  "nombre": "Filtrar y duplicar",
+  "descripcion": "Sacá cada valor distinto de cero repetido dos veces; descartá los ceros.",
+  "slots": 1,
+  "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "SALTAR", "SALTAR_SI_CERO", "ETIQUETA"],
+  "casos": [
+    { "entrada": [1, 0, 2], "salida_esperada": [1, 1, 2, 2] },
+    { "entrada": [3, 0, 0, 4], "salida_esperada": [3, 3, 4, 4] }
+  ],
+  "par": { "instrucciones": 7, "pasos": 34 }
+}
