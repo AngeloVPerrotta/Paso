@@ -149,6 +149,9 @@ var csharp_texto: TextEdit
 var csharp_titulo: Label                 # "Tu solución en C / C#"
 var boton_codigo: Button                 # "‹/› Ver en C / C#" (barra de controles)
 
+# --- "Aprendé Git" (explicador visual, módulo aparte) ---
+var git_capa: GitExplica
+
 # --- "Cómo funciona la máquina" (intro demo) + modo libre ---
 var como_capa: Control
 var es_libre := false                   # modo libre: sin objetivo, solo experimentar
@@ -187,6 +190,8 @@ func _ready() -> void:
 	orden = Niveles.orden_track(track)
 	_construir_ui()
 	_construir_inicio()
+	git_capa = GitExplica.new()          # módulo "Aprendé Git" (oculto hasta abrir)
+	add_child(git_capa)
 	_refrescar_track_ui()
 	_cargar_indice(0)
 	_mostrar_inicio()
@@ -630,6 +635,12 @@ func _construir_inicio() -> void:
 	b_como.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	b_como.pressed.connect(_abrir_como_funciona)
 	v.add_child(b_como)
+
+	var b_git := _boton_accion("Aprendé Git", false)
+	b_git.custom_minimum_size = Vector2(240, 42)
+	b_git.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	b_git.pressed.connect(func(): git_capa.abrir())
+	v.add_child(b_git)
 
 	var esp2 := Control.new()
 	esp2.custom_minimum_size = Vector2(0, 10)

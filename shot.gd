@@ -24,6 +24,7 @@ func _initialize() -> void:
 	await _esperar(8)
 
 	await _shot_inicio()
+	await _shot_git()
 	await _shot_ux()
 	await _shot_como()
 	await _shot_tutorial()
@@ -33,6 +34,26 @@ func _initialize() -> void:
 
 	print("listo: screenshots guardados en shots/")
 	quit()
+
+
+# Módulo "Aprendé Git": ancla (local vs nube), flujo (push: foto viajando) y resumen.
+func _shot_git() -> void:
+	escena.inicio_capa.visible = false
+	escena.git_capa.abrir()
+	await _esperar(4)
+	escena.git_capa._siguiente()              # paso 1: local vs nube (ancla)
+	await _esperar(18)
+	await _guardar("shot_git_nube.png")
+	for n in 4:
+		escena.git_capa._siguiente()          # hasta paso 5: git push
+	await _esperar(22)                         # la foto viajando a mitad de camino
+	await _guardar("shot_git_push.png")
+	escena.git_capa._siguiente()
+	escena.git_capa._siguiente()              # paso 7: resumen de comandos
+	await _esperar(8)
+	await _guardar("shot_git_resumen.png")
+	escena.git_capa.cerrar_modulo()
+	await _esperar(2)
 
 
 # Modales de UX estándar (sobre el inicio): "Acerca de" y "Reiniciar progreso".
