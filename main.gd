@@ -149,8 +149,9 @@ var csharp_texto: TextEdit
 var csharp_titulo: Label                 # "Tu solución en C / C#"
 var boton_codigo: Button                 # "‹/› Ver en C / C#" (barra de controles)
 
-# --- "Aprendé Git" (explicador visual, módulo aparte) ---
+# --- "Aprendé Git": explicador (Capa 1) + sandbox interactivo (Capa 2), módulos aparte ---
 var git_capa: GitExplica
+var git_sandbox: GitSandbox
 
 # --- "Cómo funciona la máquina" (intro demo) + modo libre ---
 var como_capa: Control
@@ -190,8 +191,11 @@ func _ready() -> void:
 	orden = Niveles.orden_track(track)
 	_construir_ui()
 	_construir_inicio()
-	git_capa = GitExplica.new()          # módulo "Aprendé Git" (oculto hasta abrir)
+	git_capa = GitExplica.new()          # "Aprendé Git" Capa 1 (oculto hasta abrir)
 	add_child(git_capa)
+	git_sandbox = GitSandbox.new()       # Capa 2: consola interactiva
+	add_child(git_sandbox)
+	git_capa.abrir_consola.connect(git_sandbox.abrir)
 	_refrescar_track_ui()
 	_cargar_indice(0)
 	_mostrar_inicio()

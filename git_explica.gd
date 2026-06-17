@@ -8,10 +8,13 @@ extends Control
 #
 # La consola interactiva con carpetas es la Capa 2 (próximo hito).
 
+signal abrir_consola                     # el botón del último paso pide abrir la Capa 2
+
 var _mono: SystemFont
 var _sans: SystemFont
 
 var _paso := 0
+var _b_consola: Button
 var _lienzo: Lienzo
 var _robot: Robot
 var _titulo: Label
@@ -133,6 +136,15 @@ func _ready() -> void:
 	nav.add_child(_b_next)
 	v.add_child(nav)
 
+	# Botón a la Capa 2 (consola interactiva), visible en el último paso.
+	_b_consola = _boton("Practicá en la consola ▶", true)
+	_b_consola.custom_minimum_size = Vector2(260, 42)
+	_b_consola.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_b_consola.pressed.connect(func():
+		cerrar_modulo()
+		abrir_consola.emit())
+	v.add_child(_b_consola)
+
 
 func abrir() -> void:
 	_paso = 0
@@ -173,6 +185,8 @@ func _mostrar_paso() -> void:
 	_b_prev.disabled = _paso == 0
 	_b_prev.modulate.a = 0.4 if _paso == 0 else 1.0
 	_b_next.text = "Terminar ✓" if _paso == pasos.size() - 1 else "Siguiente ▶"
+	if _b_consola:
+		_b_consola.visible = _paso == pasos.size() - 1
 	_paso_label.text = "Paso %d de %d" % [_paso + 1, pasos.size()]
 	if _robot:
 		_robot.set_mood("feliz" if _paso == pasos.size() - 1 else "idle")

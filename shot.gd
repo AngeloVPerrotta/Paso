@@ -25,6 +25,7 @@ func _initialize() -> void:
 
 	await _shot_inicio()
 	await _shot_git()
+	await _shot_sandbox()
 	await _shot_ux()
 	await _shot_como()
 	await _shot_tutorial()
@@ -53,6 +54,25 @@ func _shot_git() -> void:
 	await _esperar(8)
 	await _guardar("shot_git_resumen.png")
 	escena.git_capa.cerrar_modulo()
+	await _esperar(2)
+
+
+# Sandbox de git (Capa 2): corre comandos reales y captura el estado visual.
+func _shot_sandbox() -> void:
+	escena.inicio_capa.visible = false
+	escena.git_sandbox.abrir()
+	await _esperar(4)
+	escena.git_sandbox._on_enter("git init")
+	escena.git_sandbox._on_enter("git add .")
+	escena.git_sandbox._on_enter("git commit -m \"primer commit\"")
+	await _esperar(6)
+	await _guardar("shot_git_consola.png")
+	escena.git_sandbox._on_enter("git push")
+	escena.git_sandbox._simular_remoto()
+	escena.git_sandbox._on_enter("git pull")
+	await _esperar(6)
+	await _guardar("shot_git_sync.png")
+	escena.git_sandbox.cerrar_modulo()
 	await _esperar(2)
 
 
