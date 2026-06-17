@@ -32,7 +32,7 @@ func _pasos() -> Array:
 		{"titulo": "¿Qué es un repositorio?", "comando": "", "escena": "repo", "fase": "",
 			"caption": "Un repositorio es tu proyecto seguido por git: una carpeta con TODO su historial. Cada vez que guardás, queda registrada una versión."},
 		{"titulo": "Local y nube", "comando": "", "escena": "local_nube", "fase": "",
-			"caption": "De un lado, tu PC (local). Del otro, un servidor remoto: GitHub. Es otra computadora en la nube —no un satélite—. Git mantiene los dos sincronizados."},
+			"caption": "De un lado, tu PC (local). Del otro, un servidor en la nube: GitHub. Git mantiene los dos sincronizados."},
 		{"titulo": "1 · Hacés cambios", "comando": "", "escena": "flujo", "fase": "cambios",
 			"caption": "Editás archivos en tu PC. Son cambios locales: todavía no están guardados en el historial."},
 		{"titulo": "2 · Preparás los cambios", "comando": "git add", "escena": "flujo", "fase": "add",

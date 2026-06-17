@@ -27,6 +27,9 @@ var _robot: Robot
 var _ej_label: Label
 var _ej_estado: Label
 var _ej_btn: Button
+var _ej_pista_btn: Button
+var _ej_pista_label: Label
+var _pista_nivel := 0            # 0 = nada revelado, 1 = pista conceptual, 2 = comando
 var _ejercicio := 0
 # Progreso RELATIVO por ejercicio: cada paso se cuenta "hecho" por lo que pasa
 # DESPUÉS de entrar al paso, no por contadores absolutos (si no, explorar libre
@@ -84,7 +87,7 @@ func _construir() -> void:
 	var margen := MarginContainer.new()
 	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for lado in ["left", "top", "right", "bottom"]:
-		margen.add_theme_constant_override("margin_" + lado, 26)
+		margen.add_theme_constant_override("margin_" + lado, 20)
 	add_child(margen)
 
 	var v := VBoxContainer.new()
@@ -110,10 +113,10 @@ func _construir() -> void:
 	# Barra de ejercicio.
 	v.add_child(_construir_ejercicio())
 
-	# Paneles: PC (local) | Nube (origin).
+	# Paneles: PC (local) | Nube (origin). Tamaño según CONTENIDO (no se estiran):
+	# así nunca se los aplasta contra el toolbar en pantallas bajas (aspect=expand).
 	var cuerpo := HBoxContainer.new()
 	cuerpo.add_theme_constant_override("separation", 16)
-	cuerpo.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cuerpo.add_child(_construir_pc())
 	cuerpo.add_child(_construir_nube())
 	v.add_child(cuerpo)
@@ -137,7 +140,10 @@ func _construir() -> void:
 	_consola_out.bbcode_enabled = true
 	_consola_out.scroll_following = true
 	_consola_out.focus_mode = Control.FOCUS_NONE
-	_consola_out.custom_minimum_size = Vector2(0, 170)
+	# La consola absorbe el espacio vertical sobrante (y se achica en pantallas bajas),
+	# en vez de que lo haga el panel de archivos: evita que el panel pise el toolbar.
+	_consola_out.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_consola_out.custom_minimum_size = Vector2(0, 130)
 	_consola_out.add_theme_font_override("normal_font", _mono)
 	_consola_out.add_theme_font_size_override("normal_font_size", 14)
 	var out_sb := StyleBoxFlat.new()
@@ -167,9 +173,13 @@ func _construir() -> void:
 
 func _construir_ejercicio() -> Control:
 	var panel := _panel(Tema.PRIMARIO_TENUE, Tema.PRIMARIO)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	panel.add_child(col)
+
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
-	panel.add_child(h)
+	col.add_child(h)
 	_ej_estado = _lbl("○", _sans, 18, Tema.PRIMARIO)
 	_ej_estado.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(_ej_estado)
@@ -178,15 +188,45 @@ func _construir_ejercicio() -> Control:
 	_ej_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_ej_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(_ej_label)
+	_ej_pista_btn = _boton("💡 ¿Cómo?", false)
+	_ej_pista_btn.pressed.connect(_revelar_pista)
+	h.add_child(_ej_pista_btn)
 	_ej_btn = _boton("Siguiente ▶", true)
 	_ej_btn.pressed.connect(_ejercicio_siguiente)
 	h.add_child(_ej_btn)
+
+	# Fila de ayuda graduada (oculta hasta que la piden con 💡): pista → comando.
+	_ej_pista_label = _lbl("", _sans, 14, Tema.TEXTO)
+	_ej_pista_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ej_pista_label.visible = false
+	col.add_child(_ej_pista_label)
 	return panel
+
+
+# Revela la ayuda en dos niveles: 1ª vez la PISTA conceptual, 2ª vez el COMANDO.
+func _revelar_pista() -> void:
+	var e: Dictionary = _ejercicios()[_ejercicio]
+	if not e.has("comando"):
+		return
+	_pista_nivel += 1
+	if _pista_nivel == 1:
+		_ej_pista_label.add_theme_font_override("font", _sans)
+		_ej_pista_label.add_theme_color_override("font_color", Tema.TEXTO)
+		_ej_pista_label.text = "💡 " + str(e.get("pista", ""))
+		_ej_pista_btn.text = "Ver el comando"
+	else:
+		_ej_pista_label.add_theme_font_override("font", _mono)
+		_ej_pista_label.add_theme_color_override("font_color", Tema.PRIMARIO)
+		_ej_pista_label.text = "$ " + str(e.comando)
+		_ej_pista_btn.disabled = true
+		_ej_pista_btn.modulate.a = 0.4
+	_ej_pista_label.visible = true
 
 
 func _construir_pc() -> Control:
 	var panel := _panel(Tema.PANEL, Tema.PANEL_BORDE)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.clip_contents = true   # nunca derrama contenido fuera del panel (anti-overlap)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	panel.add_child(v)
@@ -208,6 +248,7 @@ func _construir_pc() -> Control:
 func _construir_nube() -> Control:
 	var panel := _panel(Tema.PANEL, Tema.PANEL_BORDE)
 	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.clip_contents = true
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
 	panel.add_child(v)
@@ -352,27 +393,46 @@ func _fila_archivo(nombre: String, estado: String) -> Control:
 # Ejercicios guiados (Parte C)
 # ---------------------------------------------------------------------------
 func _ejercicios() -> Array:
-	# Cada uno: {texto, hecho: Callable()->bool, [prepara_remoto]}. El robot acompaña.
-	# Los pasos 6/7/8 miden progreso RELATIVO (baselines capturados al entrar), para
-	# que la acción del paso se ejecute estando en el paso y no se saltee explorando.
+	# Cada uno: {texto (OBJETIVO), pista (conceptual), comando (último recurso),
+	# hecho: Callable()->bool, [prepara_remoto]}. El comando NO se muestra de entrada:
+	# se revela con el botón 💡 en dos niveles (pista → comando) para hacer pensar.
+	# Los pasos 6/7/8 miden progreso RELATIVO (baselines al entrar al paso).
 	return [
-		{"texto": "Iniciá el repositorio.  →  git init",
+		{"texto": "Iniciá el repositorio.",
+			"pista": "Necesitás decirle a git que empiece a seguir esta carpeta.",
+			"comando": "git init",
 			"hecho": func(): return modelo.iniciado},
-		{"texto": "Mirá en qué estado está todo.  →  git status",
+		{"texto": "Mirá en qué estado está todo.",
+			"pista": "Hay un comando para ver qué cambió y qué falta preparar.",
+			"comando": "git status",
 			"hecho": func(): return _vio_status},
-		{"texto": "Prepará los archivos para el primer commit.  →  git add .",
+		{"texto": "Prepará los archivos para el primer commit.",
+			"pista": "Tenés que poner los cambios en el «stage». El punto «.» significa «todo».",
+			"comando": "git add .",
 			"hecho": func(): return not modelo.con_estado(GitMini.PREPARADO).is_empty() or modelo.commits.size() >= 1},
-		{"texto": "Hacé tu primer commit con un mensaje.  →  git commit -m \"...\"",
+		{"texto": "Guardá tu primer commit, con un mensaje.",
+			"pista": "Un commit es una foto del proyecto. El mensaje va entre comillas, con la opción -m.",
+			"comando": "git commit -m \"primer commit\"",
 			"hecho": func(): return modelo.commits.size() >= 1},
-		{"texto": "Mirá tu historial de commits.  →  git log",
+		{"texto": "Mirá tu historial de commits.",
+			"pista": "Hay un comando que lista las fotos que ya guardaste.",
+			"comando": "git log",
 			"hecho": func(): return _vio_log},
-		{"texto": "Subilo a la nube.  →  git push",
+		{"texto": "Subí tu trabajo a la nube.",
+			"pista": "Necesitás mandar tus commits al servidor remoto.",
+			"comando": "git push",
 			"hecho": func(): return modelo.remoto.size() >= 1},
-		{"texto": "Hacé un cambio (tocá «✎ editar un archivo») y guardalo: git add + git commit.",
+		{"texto": "Hacé un cambio en un archivo y guardalo.",
+			"pista": "Tocá «✎ editar un archivo», después preparalo y commiteá (los dos pasos).",
+			"comando": "git add .   ·   git commit -m \"...\"",
 			"hecho": func(): return modelo.commits.size() > _base_commits},
-		{"texto": "Subí ese commit nuevo.  →  git push",
+		{"texto": "Subí ese commit nuevo.",
+			"pista": "Igual que antes: mandá los commits nuevos al remoto.",
+			"comando": "git push",
 			"hecho": func(): return modelo.remoto.size() > _base_remoto},
-		{"texto": "Alguien subió algo a la nube. Traelo.  →  git pull",
+		{"texto": "Alguien subió algo a la nube. Traelo a tu PC.",
+			"pista": "Necesitás traer a tu PC los commits que están en el remoto.",
+			"comando": "git pull",
 			"prepara_remoto": true,
 			"hecho": func(): return _ej_pull_base >= 0 and modelo.commits.size() > _ej_pull_base},
 		{"texto": "¡Listo! Ese es el flujo completo de git. Seguí practicando lo que quieras.",
@@ -386,6 +446,14 @@ func _mostrar_ejercicio() -> void:
 		_ejercicio = ejs.size() - 1
 	var e: Dictionary = ejs[_ejercicio]
 	_ej_label.text = "Ejercicio %d/%d:  %s" % [_ejercicio + 1, ejs.size(), e.texto]
+	# Reset de la ayuda graduada al entrar a un paso nuevo (el último no tiene comando).
+	_pista_nivel = 0
+	_ej_pista_label.visible = false
+	_ej_pista_label.text = ""
+	_ej_pista_btn.visible = e.has("comando")
+	_ej_pista_btn.disabled = false
+	_ej_pista_btn.modulate.a = 1.0
+	_ej_pista_btn.text = "💡 ¿Cómo?"
 	# Baseline al entrar al paso: los pasos 6/7 se cuentan por lo que pase desde acá.
 	_base_commits = modelo.commits.size()
 	_base_remoto = modelo.remoto.size()
