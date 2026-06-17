@@ -57,22 +57,32 @@ func _shot_git() -> void:
 	await _esperar(2)
 
 
-# Sandbox de git (Capa 2): corre comandos reales y captura el estado visual.
+# Sandbox de git (Capa 2): JUGAMOS los ejercicios de verdad (comando + "Siguiente"),
+# así el header avanza y las capturas caen en un ejercicio avanzado (no en 1/10).
 func _shot_sandbox() -> void:
+	var sgit = escena.git_sandbox
 	escena.inicio_capa.visible = false
-	escena.git_sandbox.abrir()
+	sgit.abrir()
 	await _esperar(4)
-	escena.git_sandbox._on_enter("git init")
-	escena.git_sandbox._on_enter("git add .")
-	escena.git_sandbox._on_enter("git commit -m \"primer commit\"")
+	# 1/10 init -> 2/10 status -> 3/10 add -> 4/10 commit -> 5/10 log -> 6/10 push.
+	sgit._on_enter("git init");                       sgit._ejercicio_siguiente()
+	sgit._on_enter("git status");                     sgit._ejercicio_siguiente()
+	sgit._on_enter("git add .");                      sgit._ejercicio_siguiente()
+	sgit._on_enter("git commit -m \"primer commit\""); sgit._ejercicio_siguiente()
+	sgit._on_enter("git log");                        sgit._ejercicio_siguiente()
+	sgit._on_enter("git push")                        # header: «Ejercicio 6/10»
 	await _esperar(6)
 	await _guardar("shot_git_consola.png")
-	escena.git_sandbox._on_enter("git push")
-	escena.git_sandbox._simular_remoto()
-	escena.git_sandbox._on_enter("git pull")
+	# 7/10 cambio + commit -> 8/10 push -> 9/10 pull (el paso auto-simula la nube).
+	sgit._ejercicio_siguiente()
+	sgit._editar_archivo()
+	sgit._on_enter("git add .")
+	sgit._on_enter("git commit -m \"segundo\"");      sgit._ejercicio_siguiente()
+	sgit._on_enter("git push");                       sgit._ejercicio_siguiente()
+	sgit._on_enter("git pull")                        # header: «Ejercicio 9/10», sincronizado
 	await _esperar(6)
 	await _guardar("shot_git_sync.png")
-	escena.git_sandbox.cerrar_modulo()
+	sgit.cerrar_modulo()
 	await _esperar(2)
 
 
