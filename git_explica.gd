@@ -38,18 +38,18 @@ var _b_consola: Button
 # foco (Rect2 REL al lienzo: el hueco del spotlight), robot_x (REL al lienzo: a dónde viaja).
 func _pasos() -> Array:
 	return [
-		{"frase": "Git le saca fotos a tu proyecto.", "tipo": "mira", "escena": "repo",
+		{"frase": "Git guarda todo el historial de tu proyecto: cada cambio que hacés, guardado.", "tipo": "mira", "escena": "repo",
 			"gesto": "", "comando": "", "foco": Rect2(0.30, 0.20, 0.44, 0.55), "robot_x": 0.50},
-		{"frase": "Tu PC y un servidor, conectados.", "tipo": "mira", "escena": "local_nube",
+		{"frase": "Tu computadora y un servidor en la nube, conectados.", "tipo": "mira", "escena": "local_nube",
 			"gesto": "", "comando": "", "foco": Rect2(0.08, 0.20, 0.84, 0.44), "robot_x": 0.32},
-		{"frase": "Elegís qué entra en la foto.", "tipo": "hace", "escena": "cambio_add",
+		{"frase": "Marcás qué cambios querés guardar.", "tipo": "hace", "escena": "cambio_add",
 			"gesto": "Preparar el archivo", "comando": "git add", "foco": Rect2(0.12, 0.18, 0.74, 0.60), "robot_x": 0.26},
-		{"frase": "Una foto de tu trabajo.", "tipo": "hace", "escena": "commit",
-			"gesto": "📸 Sacar la foto", "comando": "git commit", "foco": Rect2(0.16, 0.16, 0.66, 0.58), "robot_x": 0.32},
-		{"frase": "A salvo en la nube.", "tipo": "hace", "escena": "push",
-			"gesto": "☁ Mandar a la nube", "comando": "git push", "foco": Rect2(0.10, 0.18, 0.80, 0.44), "robot_x": 0.62},
-		{"frase": "Traés lo nuevo de la nube.", "tipo": "hace", "escena": "pull",
-			"gesto": "⬇ Traer de la nube", "comando": "git pull", "foco": Rect2(0.10, 0.18, 0.80, 0.44), "robot_x": 0.60},
+		{"frase": "Es un punto del historial al que podés volver.", "tipo": "hace", "escena": "commit",
+			"gesto": "Guardar este avance", "comando": "git commit", "foco": Rect2(0.16, 0.16, 0.66, 0.58), "robot_x": 0.32},
+		{"frase": "Tu avance queda guardado online.", "tipo": "hace", "escena": "push",
+			"gesto": "Subir a la nube", "comando": "git push", "foco": Rect2(0.10, 0.18, 0.80, 0.44), "robot_x": 0.62},
+		{"frase": "Bajás los cambios nuevos desde la nube.", "tipo": "hace", "escena": "pull",
+			"gesto": "Traer de la nube", "comando": "git pull", "foco": Rect2(0.10, 0.18, 0.80, 0.44), "robot_x": 0.60},
 		{"frase": "¡Listo! Ya entendés git.", "tipo": "mira", "escena": "resumen",
 			"gesto": "", "comando": "", "foco": Rect2(0.06, 0.04, 0.88, 0.90), "robot_x": 0.46, "robot_y": -150.0},
 	]
@@ -337,7 +337,7 @@ func _crear_pill() -> PanelContainer:
 	pill.add_theme_stylebox_override("panel", sb)
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 8)
-	hb.add_child(_label("se llama", _sans, 14, Tema.TENUE))
+	hb.add_child(_label("Este comando es:", _sans, 14, Tema.TENUE))
 	_cmd_label = _label("", _mono, 17, Tema.PRIMARIO)
 	hb.add_child(_cmd_label)
 	pill.add_child(hb)
@@ -359,6 +359,11 @@ class Bocadillo extends MarginContainer:
 		_label.add_theme_font_override("font", fuente)
 		_label.add_theme_font_size_override("font_size", 18)
 		_label.add_theme_color_override("font_color", Tema.TEXTO)
+		# Frases más largas: envolvemos a un ancho fijo para que el bocadillo no se
+		# salga del viewport (1000px). El ancho mantiene robot+burbuja ≤ ~360px, la
+		# reserva que ya usa el clamp de _colocar_foco al ubicar al robot a la derecha.
+		_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_label.custom_minimum_size = Vector2(220, 0)
 		add_child(_label)
 
 	func set_texto(t: String) -> void:
@@ -448,7 +453,7 @@ class Lienzo extends Control:
 			var fp := Vector2(c.x + 150, c.y - 6)
 			draw_line(c + Vector2(74, -6), fp + Vector2(-18, 0), Color(Tema.PRIMARIO.r, Tema.PRIMARIO.g, Tema.PRIMARIO.b, 0.5 * a), 2.0)
 			_foto(fp, 1.3 + 0.15 * a, Color(Tema.PRIMARIO.r, Tema.PRIMARIO.g, Tema.PRIMARIO.b, 0.35 + 0.65 * a))
-			_texto("una foto de tu proyecto", Vector2(fp.x - 56, fp.y + 40), 13, Color(Tema.TEXTO.r, Tema.TEXTO.g, Tema.TEXTO.b, a))
+			_texto("una copia de tu proyecto", Vector2(fp.x - 56, fp.y + 40), 13, Color(Tema.TEXTO.r, Tema.TEXTO.g, Tema.TEXTO.b, a))
 
 	# --- 2. Local y nube: la línea se "dibuja" entre la PC y el servidor ---
 	func _draw_local_nube() -> void:
@@ -468,7 +473,7 @@ class Lienzo extends Control:
 		var pc := Vector2(size.x * 0.20, size.y * 0.40)
 		_pc(pc)
 		var marco := Vector2(size.x * 0.70, size.y * 0.42)
-		_marco_foto(marco, "la próxima foto")
+		_marco_foto(marco, "lo que vas a guardar")
 		var t := clampf(prog, 0.0, 1.0)
 		# Tus archivos editados, en el medio. Dos limpios quedan afuera; uno lo ELEGÍS.
 		var base := Vector2(size.x * 0.44, size.y * 0.34)
@@ -485,7 +490,7 @@ class Lienzo extends Control:
 	func _draw_commit() -> void:
 		var stage := Vector2(size.x * 0.30, size.y * 0.46)
 		var hist := Vector2(size.x * 0.64, size.y * 0.46)
-		_marco_foto(stage, "la foto", -54)              # rótulo ARRIBA del marco
+		_marco_foto(stage, "este avance", -54)          # rótulo ARRIBA del marco
 		_pila(hist, 1, "historial local")               # rótulo ABAJO de la pila
 		var t := clampf(prog, 0.0, 1.0)
 		if t < 0.35:
@@ -530,8 +535,8 @@ class Lienzo extends Control:
 		var filas := [
 			["git init", "empezás a seguir una carpeta con git"],
 			["git status", "ves qué cambió y qué está preparado"],
-			["git add", "elegís qué entra en la próxima foto"],
-			["git commit", "guardás una foto en tu historial local"],
+			["git add", "elegís qué cambios querés guardar"],
+			["git commit", "guardás un avance en tu historial local"],
 			["git push", "mandás tus commits a la nube"],
 			["git pull", "traés lo nuevo de la nube a tu PC"],
 			["git clone", "bajás un repo entero la primera vez"],
