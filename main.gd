@@ -148,6 +148,9 @@ var csharp_capa: Control
 var csharp_texto: TextEdit
 var csharp_titulo: Label                 # "Tu solución en C / C#"
 var boton_codigo: Button                 # "‹/› Ver en C / C#" (barra de controles)
+var boton_validar: Button                # "✓ Validar": arranca deshabilitado hasta correr una vez
+var _hint_validar: Label                 # textito "corré primero" al lado de Validar (cuando está bloqueado)
+var _corrio_este_nivel := false          # runtime: ¿ya corrió/pasó el programa en este nivel?
 
 # --- "Aprendé Git": explicador (Capa 1) + sandbox interactivo (Capa 2), módulos aparte ---
 var git_capa: GitExplica
@@ -183,7 +186,9 @@ var _tuto_marca_visto := true           # true: al terminar marca el nivel como 
 # Presentación pura. Textos cortos/rioplatenses (Angelo: cambialos si querés). Flags
 # de "primera vez" en Puntajes (vio_robot_*): "Reiniciar progreso" los borra solos.
 const TUTOR_PRIMER_PROG := "¡Buen comienzo! Apilá las órdenes y yo las hago una por una, de arriba a abajo."
-const TUTOR_PRIMER_PASE := "¡Lo resolviste! Cada nivel suma una idea nueva. Vamos al que sigue."
+# Sub-tanda D: puente "lo que armaste = código real". %s = nombre del track (C / C#).
+const TUTOR_CODIGO_GANAR := "¡Lo resolviste! Esto que armaste, en %s real se ve así 👇  Ya es código que compila."
+const TUTOR_PANEL_CODIGO := "Tu programa, traducido a %s real — comentado, como lo escribirías de verdad."
 var tutor_capa: Control                  # overlay propio (no se encima con tutorial_capa/spotlight)
 var _tutorbot: Robot                     # robot que se asoma (reusa robot.gd)
 var _tutor_burbuja: PanelContainer       # burbuja del comentario (mismo mecanismo que el tutorial)
@@ -191,7 +196,10 @@ var _tutor_activo := false               # hay un comentario en pantalla
 var _tutor_cerrando := false             # cierre en curso (evita doble disparo)
 var _tutor_tween: Tween
 var _tutor_origen := Vector2.ZERO        # posición del robot real (para volver)
-var _tutor_pase_pendiente := false       # mostrar "primer nivel" recién al cerrar el banner
+var _gano_pendiente := false             # al cerrar el banner: mostrar el código traducido + el robot
+var _codigo_modo_ganar := false          # el panel de código está en modo "al ganar" (Seguir/Siguiente)
+var _codigo_x: Button                    # ✕ del panel (se oculta en modo ganar)
+var _codigo_footer: HBoxContainer        # footer del panel en modo ganar (Seguir / Siguiente nivel)
 
 
 func _ready() -> void:
@@ -248,6 +256,8 @@ func _cargar_indice(idx: int) -> void:
 	_repintar_cabecera()
 	_repintar_progreso()
 	_reset_corrida()
+	_corrio_este_nivel = false               # nivel nuevo: hay que correrlo antes de validar
+	_actualizar_validar()
 	if robot:
 		robot.set_mood("idle")
 	_quizas_tutorial()
@@ -546,6 +556,15 @@ func _construir_escenario() -> Control:
 
 
 func _construir_controles() -> Control:
+	# VBox: fila de hint (arriba, alineada a la derecha sobre Validar; se oculta al
+	# habilitar) + la fila de botones. Así el hint nunca empuja ni recorta los botones.
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 5)
+	_hint_validar = _etiqueta("Para validar, primero corré tu programa (▶ Correr o ⏯ Paso)", 13, COL_TENUE)
+	_hint_validar.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_hint_validar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_child(_hint_validar)
+
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 10)
 
@@ -579,11 +598,13 @@ func _construir_controles() -> Control:
 	boton_codigo.pressed.connect(_toggle_csharp)
 	fila.add_child(boton_codigo)
 
-	var b_validar := _boton_accion("✓ Validar", true)
-	b_validar.pressed.connect(_on_validar_pressed)
-	fila.add_child(b_validar)
+	boton_validar = _boton_accion("✓ Validar", true)
+	boton_validar.pressed.connect(_on_validar_pressed)
+	fila.add_child(boton_validar)
+	col.add_child(fila)
+	_actualizar_validar()                    # arranca deshabilitado + hint visible
 
-	return fila
+	return col
 
 
 # ---------------------------------------------------------------------------
@@ -876,10 +897,10 @@ func _construir_csharp() -> void:
 	csharp_titulo.add_theme_color_override("font_color", COL_TEXTO)
 	csharp_titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hrow.add_child(csharp_titulo)
-	var cerrar := _boton_accion("✕", false)
-	cerrar.custom_minimum_size = Vector2(40, 36)
-	cerrar.pressed.connect(_cerrar_csharp)
-	hrow.add_child(cerrar)
+	_codigo_x = _boton_accion("✕", false)
+	_codigo_x.custom_minimum_size = Vector2(40, 36)
+	_codigo_x.pressed.connect(_cerrar_csharp)
+	hrow.add_child(_codigo_x)
 	v.add_child(hrow)
 
 	csharp_texto = TextEdit.new()
@@ -902,21 +923,46 @@ func _construir_csharp() -> void:
 	csharp_texto.custom_minimum_size = Vector2(648, 448)
 	v.add_child(csharp_texto)
 
+	# Footer "al ganar" (oculto en modo normal): Seguir (queda) / Siguiente nivel (avanza).
+	_codigo_footer = HBoxContainer.new()
+	_codigo_footer.add_theme_constant_override("separation", 10)
+	_codigo_footer.visible = false
+	var fsp := Control.new()
+	fsp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_codigo_footer.add_child(fsp)
+	var b_seguir := _boton_accion("Seguir", false)
+	b_seguir.pressed.connect(_codigo_seguir)
+	_codigo_footer.add_child(b_seguir)
+	var b_sig := _boton_accion("Siguiente nivel ▸", true)
+	b_sig.pressed.connect(_codigo_siguiente_nivel)
+	_codigo_footer.add_child(b_sig)
+	v.add_child(_codigo_footer)
+
 
 func _toggle_csharp() -> void:
 	if csharp_capa.visible:
 		_cerrar_csharp()
 		return
+	_codigo_modo_ganar = false
+	_aplicar_modo_codigo()                # modo normal: ✕ visible, footer oculto, título base
 	# El generador y el título dependen del track.
 	csharp_texto.text = (Cc.generar(programa_modelo()) if track == "c" else Csharp.generar(programa_modelo()))
 	csharp_capa.visible = true
 	csharp_capa.move_to_front()
 	if sfx:
 		sfx.click()
+	# Momento 2 (sub-tanda D): la PRIMERA vez que el jugador abre el panel por su cuenta,
+	# el robot explica qué es. Una sola vez (flag); después abre normal.
+	if _puede_tutorial() and not Puntajes.flag("vio_codigo_panel"):
+		Puntajes.set_flag("vio_codigo_panel", true)
+		_robot_comenta(TUTOR_PANEL_CODIGO % _nombre_track(), "idle")
 
 
 func _cerrar_csharp() -> void:
 	csharp_capa.visible = false
+	_codigo_modo_ganar = false
+	if _tutor_activo:
+		_tutor_cerrar_inmediato()         # cierra el robot que acompaña el panel (si lo hay)
 
 
 # Ajusta los textos que dependen del track (botón del panel, título, indicador del inicio).
@@ -1380,6 +1426,7 @@ func _avanzar() -> int:
 func _on_step_pressed() -> void:
 	_detener()
 	_paso()
+	_marcar_corrio()
 
 
 func _on_run_pressed() -> void:
@@ -1387,10 +1434,13 @@ func _on_run_pressed() -> void:
 		_detener()
 	else:
 		_correr()
+	_marcar_corrio()
 
 
 func _on_reset_pressed() -> void:
 	_reset_corrida()
+	_corrio_este_nivel = false               # Reiniciar re-bloquea Validar (hay que correr de nuevo)
+	_actualizar_validar()
 
 
 func _on_vel_pressed() -> void:
@@ -1399,6 +1449,28 @@ func _on_vel_pressed() -> void:
 	boton_vel.text = "⏩ %s" % VELOCIDADES[vel_idx].nombre
 	if sfx:
 		sfx.click()
+
+
+# Gating de Validar (sub-tanda C): el jugador tiene que CORRER (o pasar) su programa al
+# menos una vez en el nivel antes de poder validar, así ve qué hace antes del veredicto.
+# Es de runtime (al recargar/reiniciar el nivel vuelve a pedirlo). NO toca la validación:
+# solo prende/apaga el botón; _on_validar_pressed sigue igual.
+func _marcar_corrio() -> void:
+	if _corrio_este_nivel:
+		return
+	_corrio_este_nivel = true
+	_actualizar_validar()
+
+
+func _actualizar_validar() -> void:
+	if boton_validar == null:
+		return
+	boton_validar.disabled = not _corrio_este_nivel
+	boton_validar.modulate.a = 1.0 if _corrio_este_nivel else 0.45
+	boton_validar.tooltip_text = ("Comprobá tu solución contra el objetivo."
+		if _corrio_este_nivel else "Primero corré tu programa (▶ Correr o ⏯ Paso) para ver qué hace.")
+	if _hint_validar:
+		_hint_validar.visible = not _corrio_este_nivel
 
 
 func _on_validar_pressed() -> void:
@@ -1443,8 +1515,8 @@ func _on_validar_pressed() -> void:
 			else:
 				sfx.win()
 		_celebrar(r.score.instrucciones, r.score.pasos, es_par, es_record)
-		if not Puntajes.flag("vio_robot_pase"):
-			_tutor_pase_pendiente = true
+		# Ajuste D: el código-al-ganar solo las PRIMERAS 3 victorias; de ahí en más, banner solo.
+		_gano_pendiente = _puede_tutorial() and _veces_cod_ganar() < 3
 	else:
 		validacion_label.text = "✗  %s" % _mensaje_falla(r)
 		validacion_label.add_theme_color_override("font_color", COL_ERROR)
@@ -1809,9 +1881,11 @@ func _descartar_banner(banner: Control) -> void:
 	var t := create_tween()
 	t.tween_property(banner, "modulate:a", 0.0, 0.25)
 	t.tween_callback(func(): if is_instance_valid(banner): banner.queue_free())
-	# Robot-tutor: tras cerrar la celebración del PRIMER nivel pasado, el robot se asoma.
-	if _tutor_pase_pendiente:
-		t.tween_callback(_quizas_comentario_primer_pase)
+	# Sub-tanda D: tras la celebración mostramos el código traducido con el robot de guía
+	# (orden: celebración → código+robot → Seguir/Siguiente). Nunca dos cosas hablando a la vez.
+	if _gano_pendiente:
+		_gano_pendiente = false
+		t.tween_callback(_mostrar_codigo_al_ganar)
 
 
 # ---------------------------------------------------------------------------
@@ -2172,7 +2246,7 @@ func _tutor_libre() -> bool:
 
 
 # Muestra un comentario. Devuelve true si efectivamente se mostró (para marcar el flag).
-func _robot_comenta(texto: String, animo: String) -> bool:
+func _robot_comenta(texto: String, animo: String, con_boton := true) -> bool:
 	if not _tutor_libre() or robot == null:
 		return false
 	_tutor_activo = true
@@ -2210,19 +2284,23 @@ func _robot_comenta(texto: String, animo: String) -> bool:
 	lbl.custom_minimum_size = Vector2(216, 0)
 	lbl.text = texto
 	bv.add_child(lbl)
-	var fila := HBoxContainer.new()
-	var sp := Control.new()
-	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	fila.add_child(sp)
-	var ok := _boton_accion("dale ✓", true)
-	ok.pressed.connect(_cerrar_comentario)
-	fila.add_child(ok)
-	bv.add_child(fila)
+	# Botón "dale ✓" + tap-para-cerrar: solo cuando el robot se cierra por sí mismo. En el
+	# panel de código al ganar (con_boton=false) el flujo lo dan Seguir / Siguiente nivel.
+	if con_boton:
+		var fila := HBoxContainer.new()
+		var sp := Control.new()
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		fila.add_child(sp)
+		var ok := _boton_accion("dale ✓", true)
+		ok.pressed.connect(_cerrar_comentario)
+		fila.add_child(ok)
+		bv.add_child(fila)
 	_tutor_burbuja.modulate.a = 0.0
 	tutor_capa.add_child(_tutor_burbuja)
-	_tutor_burbuja.gui_input.connect(func(e):
-		if e is InputEventMouseButton and e.pressed:
-			_cerrar_comentario())
+	if con_boton:
+		_tutor_burbuja.gui_input.connect(func(e):
+			if e is InputEventMouseButton and e.pressed:
+				_cerrar_comentario())
 
 	# Destino: esquina inferior-derecha del área de juego (franja derecha libre, la misma
 	# que usa la celebración), por encima de los controles. Nunca pisa el editor (izquierda).
@@ -2309,7 +2387,7 @@ func _tutor_cerrar_inmediato() -> void:
 		robot.modulate.a = 1.0
 	_tutor_activo = false
 	_tutor_cerrando = false
-	_tutor_pase_pendiente = false
+	_gano_pendiente = false
 
 
 # Momento clave 1: primera vez que el jugador arma programa (pone una instrucción). Si la
@@ -2321,14 +2399,65 @@ func _quizas_comentario_primer_programa() -> void:
 		Puntajes.set_flag("vio_robot_prog", true)
 
 
-# Momento clave 2: primera vez que pasa un nivel. Se dispara al CERRAR el banner de
-# celebración (así nunca hablan los dos a la vez).
-func _quizas_comentario_primer_pase() -> void:
-	_tutor_pase_pendiente = false
-	if not _puede_tutorial() or Puntajes.flag("vio_robot_pase"):
+# Ajuste D: cuántas veces ya se mostró el código-al-ganar (tope 3). Vive en el .cfg de
+# Puntajes → "Reiniciar progreso" lo resetea con el resto. La API de flags es bool-only
+# (no hay setter de int), así que el contador se representa con 3 flags cod_ganar_1/2/3.
+func _veces_cod_ganar() -> int:
+	var n := 0
+	for i in 3:
+		if Puntajes.flag("cod_ganar_%d" % (i + 1)):
+			n += 1
+	return n
+
+
+func _marcar_cod_ganar() -> void:
+	var n := _veces_cod_ganar()
+	if n < 3:
+		Puntajes.set_flag("cod_ganar_%d" % (n + 1), true)
+
+
+# Sub-tanda D — AL GANAR: tras la celebración mostramos el programa traducido a código
+# (el mismo del panel "Ver en C/C#", según el track) y el robot lo comenta a alto nivel.
+# Salteable: Seguir (queda) / Siguiente nivel (avanza). Reusa el panel y el tutor; no
+# rehace UI ni traducción. En headless no corre (igual el banner nunca dispara ahí).
+# Solo las primeras 3 victorias (_gano_pendiente ya viene gateado por _veces_cod_ganar).
+func _mostrar_codigo_al_ganar() -> void:
+	if not _puede_tutorial() or nivel == null:
 		return
-	if _robot_comenta(TUTOR_PRIMER_PASE, "fiesta"):
-		Puntajes.set_flag("vio_robot_pase", true)
+	_marcar_cod_ganar()               # registra esta aparición (cuenta para el tope de 3)
+	_codigo_modo_ganar = true
+	_aplicar_modo_codigo()
+	csharp_texto.text = (Cc.generar(programa_modelo()) if track == "c" else Csharp.generar(programa_modelo()))
+	csharp_capa.visible = true
+	csharp_capa.move_to_front()
+	# El robot acompaña con el puente (sin su botón: el flujo lo dan Seguir/Siguiente nivel).
+	_robot_comenta(TUTOR_CODIGO_GANAR % _nombre_track(), "feliz", false)
+
+
+func _codigo_seguir() -> void:
+	_cerrar_csharp()                  # cierra panel + robot (modo ganar); queda en el nivel
+
+
+func _codigo_siguiente_nivel() -> void:
+	_cerrar_csharp()
+	_on_next()                        # _cargar_indice ya resetea el nivel y cierra el tutor
+
+
+# Nombre del track para los textos del robot ("C" / "C#").
+func _nombre_track() -> String:
+	return "C" if track == "c" else "C#"
+
+
+# Ajusta el panel de código según el modo: normal (✕, título base) vs "al ganar"
+# (sin ✕, footer Seguir/Siguiente, título festejo). No toca la traducción.
+func _aplicar_modo_codigo() -> void:
+	var base := "Tu solución en C" if track == "c" else "Tu solución en C#"
+	if csharp_titulo:
+		csharp_titulo.text = ("¡Pasaste!  " + base) if _codigo_modo_ganar else base
+	if _codigo_x:
+		_codigo_x.visible = not _codigo_modo_ganar
+	if _codigo_footer:
+		_codigo_footer.visible = _codigo_modo_ganar
 
 
 # ---------------------------------------------------------------------------
@@ -2412,6 +2541,9 @@ func _boton_accion(txt: String, acento: bool) -> Button:
 	b.add_theme_stylebox_override("normal", normal)
 	b.add_theme_stylebox_override("hover", hover)
 	b.add_theme_stylebox_override("pressed", pressed)
+	# Deshabilitado: mismo stylebox que normal (no el gris del tema); lo atenúa el modulate.
+	b.add_theme_stylebox_override("disabled", normal)
+	b.add_theme_color_override("font_disabled_color", Color.WHITE if acento else COL_TEXTO)
 	return b
 
 
