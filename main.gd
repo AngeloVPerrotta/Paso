@@ -233,6 +233,7 @@ func _cargar_indice(idx: int) -> void:
 	if robot:
 		robot.set_mood("idle")
 	_quizas_tutorial()
+	_quizas_primeras_veces()
 
 
 func _on_prev() -> void:
@@ -1760,8 +1761,8 @@ func _mensaje_falla(r) -> String:
 			var n: int = min(esperada.size(), obtenida.size())
 			for k in n:
 				if esperada[k] != obtenida[k]:
-					return "Casi 👀  con %s: en el %s lugar iba %d (int) y saliste %d. Revisá el orden en que guardás/recuperás de memoria." % [
-						str(d.entrada), _ordinal(k + 1), int(esperada[k]), int(obtenida[k])]
+					return "Casi 👀  con %s: en el %s lugar iba %s y saliste %s. Revisá el orden en que guardás/recuperás de memoria." % [
+						str(d.entrada), _ordinal(k + 1), _str_valor(esperada[k]), _str_valor(obtenida[k])]
 			# Mismo prefijo, distinta cantidad.
 			if obtenida.size() < esperada.size():
 				return "Casi  con %s: salieron de menos. Esperaba %d valores y salieron %d. ¿Te faltó un SOLTAR?" % [
@@ -1831,6 +1832,44 @@ func _abrir_ayuda() -> void:
 	_tuto_pasos = _pasos_legenda()
 	_tuto_i = 0
 	_tuto_marca_visto = false
+	call_deferred("_tutorial_arrancar")
+
+
+# Onboarding "PRIMERA VEZ": presenta cada zona/panel con una frase física de 1 línea
+# (qué hace, no jerga) la primera vez que aparece, reusando el MISMO spotlight del
+# tutorial. Convive con el tutorial automático sin encimarse: si el tutorial va a
+# arrancar este load, espera. No repite ENTRAN/MEMORIA si el tutorial de los niveles
+# 1-2 ya las explicó. Cada zona se muestra una sola vez (flag pv_*); "Reiniciar
+# progreso" los borra solos (borra el .cfg entero). En headless no corre (tests).
+func _quizas_primeras_veces() -> void:
+	if not _puede_tutorial() or nivel == null:
+		return
+	if inicio_capa and inicio_capa.visible:
+		return
+	if tutorial_capa and tutorial_capa.visible:
+		return
+	# No pisar el tutorial automático: si va a arrancar (niveles 1-2 aún sin verse), esperamos.
+	if nivel_idx <= 1 and not Puntajes.flag("tuto_" + nivel.id):
+		return
+	# Cola de zonas sin presentar. La lambda «objetivo» va SIEMPRE última (limitación del parser).
+	var pasos := []
+	if not Puntajes.flag("pv_entran") and not Puntajes.flag("tuto_b1_eco"):
+		pasos.append({"texto": "« ENTRAN » — los números que llegan, en fila.", "flag": "pv_entran", "objetivo": func(): return entrada_box})
+	if not Puntajes.flag("pv_mano"):
+		pasos.append({"texto": "« EN LA MANO » — lo que el robot tiene agarrado ahora.", "flag": "pv_mano", "objetivo": func(): return mano_celda})
+	if not Puntajes.flag("pv_memoria") and not Puntajes.flag("tuto_b2_invertir_par"):
+		pasos.append({"texto": "« MEMORIA » — un cajón para guardar algo y usarlo después.", "flag": "pv_memoria", "objetivo": func(): return slots_box})
+	if not Puntajes.flag("pv_salen"):
+		pasos.append({"texto": "« SALEN » — lo que el robot va sacando, en orden.", "flag": "pv_salen", "objetivo": func(): return salida_box})
+	if not Puntajes.flag("pv_instr"):
+		pasos.append({"texto": "« INSTRUCCIONES » — las órdenes que le podés dar al robot.", "flag": "pv_instr", "objetivo": func(): return paleta_box})
+	if not Puntajes.flag("pv_programa"):
+		pasos.append({"texto": "« TU PROGRAMA » — la lista de órdenes, en orden.", "flag": "pv_programa", "objetivo": func(): return programa_vbox})
+	if pasos.is_empty():
+		return
+	_tuto_pasos = pasos
+	_tuto_i = 0
+	_tuto_marca_visto = false                    # no marca tuto_<id>; cada paso marca su propio flag pv_*
 	call_deferred("_tutorial_arrancar")
 
 
@@ -1955,6 +1994,8 @@ func _tutorial_mostrar_paso() -> void:
 		_cerrar_tutorial()
 		return
 	var paso = _tuto_pasos[_tuto_i]
+	if paso.has("flag"):
+		Puntajes.set_flag(paso.flag, true)        # onboarding "primera vez": esta zona ya se mostró
 	var globo := _tuto_globo
 	var espera: String = paso.get("espera", "")
 	var sin_velo: bool = paso.get("sin_velo", false)

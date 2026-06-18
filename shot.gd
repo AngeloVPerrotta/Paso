@@ -25,6 +25,7 @@ func _initialize() -> void:
 
 	await _shot_inicio()
 	await _shot_git()
+	await _shot_onboarding()
 	await _shot_sandbox()
 	await _shot_ux()
 	await _shot_como()
@@ -209,6 +210,29 @@ func _shot_codigo(tr: String, id: String, archivo: String) -> void:
 	await _esperar(8)
 	await _guardar(archivo)
 	escena._cerrar_csharp()
+	await _esperar(2)
+
+
+# Onboarding "primera vez" (FASE 3): presentaciones de zonas con spotlight.
+func _shot_onboarding() -> void:
+	escena.inicio_capa.visible = false
+	escena._cargar_indice(escena.orden.find("invertir_trio"))   # nivel que SÍ usa memoria
+	await _esperar(8)
+	escena._cerrar_tutorial()                                    # limpiar lo que haya disparado auto
+	await _capturar_zona("« ENTRAN » — los números que llegan, en fila.", func(): return escena.entrada_box, "shot_onb_entran.png")
+	await _capturar_zona("« EN LA MANO » — lo que el robot tiene agarrado ahora.", func(): return escena.mano_celda, "shot_onb_mano.png")
+	await _capturar_zona("« MEMORIA » — un cajón para guardar algo y usarlo después.", func(): return escena.slots_box, "shot_onb_memoria.png")
+
+
+func _capturar_zona(texto: String, getter: Callable, nombre: String) -> void:
+	escena._cerrar_tutorial()
+	escena._tuto_pasos = [{"texto": texto, "objetivo": getter}]
+	escena._tuto_i = 0
+	escena._tuto_marca_visto = false
+	escena._tutorial_arrancar()
+	await _esperar(12)     # _tutorial_mostrar_paso espera 2 frames para ubicar el globo
+	await _guardar(nombre)
+	escena._cerrar_tutorial()
 	await _esperar(2)
 
 
