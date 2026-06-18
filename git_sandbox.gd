@@ -78,37 +78,52 @@ func cerrar_modulo() -> void:
 # Construcción de la UI
 # ---------------------------------------------------------------------------
 func _construir() -> void:
-	var fondo := ColorRect.new()
-	fondo.color = Tema.FONDO
-	fondo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(fondo)
+	# ── Envoltorio "SO de Paso": escritorio (wallpaper) + ventana de app. Es SOLO
+	# presentación; el sandbox (consola, paneles, ejercicios, pista) vive adentro igual. ──
+	var escritorio := Escritorio.new()
+	escritorio.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	escritorio.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(escritorio)
 
-	var margen := MarginContainer.new()
-	margen.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Margen del escritorio: deja ver el wallpaper alrededor de la ventana.
+	var marco := MarginContainer.new()
+	marco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for lado in ["left", "top", "right", "bottom"]:
-		margen.add_theme_constant_override("margin_" + lado, 20)
-	add_child(margen)
+		marco.add_theme_constant_override("margin_" + lado, 34)
+	add_child(marco)
+
+	# Ventana de la app: esquinas redondeadas + sombra que la despega del escritorio.
+	var ventana := PanelContainer.new()
+	var win_sb := StyleBoxFlat.new()
+	win_sb.bg_color = Tema.FONDO
+	win_sb.set_corner_radius_all(16)
+	win_sb.border_color = Tema.PRIMARIO
+	win_sb.set_border_width_all(1)
+	win_sb.shadow_color = Color(0.12, 0.11, 0.09, 0.32)
+	win_sb.shadow_size = 22
+	win_sb.shadow_offset = Vector2(0, 9)
+	ventana.add_theme_stylebox_override("panel", win_sb)
+	marco.add_child(ventana)
+
+	var v_win := VBoxContainer.new()
+	v_win.add_theme_constant_override("separation", 0)
+	ventana.add_child(v_win)
+
+	# Barra de título del SO de Paso (icono robot + nombre + 3 botoncitos).
+	v_win.add_child(_construir_titlebar())
+
+	# Cuerpo de la ventana (padding interno). Acá adentro va el sandbox tal cual.
+	var cuerpo_margin := MarginContainer.new()
+	cuerpo_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cuerpo_margin.add_theme_constant_override("margin_left", 18)
+	cuerpo_margin.add_theme_constant_override("margin_right", 18)
+	cuerpo_margin.add_theme_constant_override("margin_top", 14)
+	cuerpo_margin.add_theme_constant_override("margin_bottom", 16)
+	v_win.add_child(cuerpo_margin)
 
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
-	margen.add_child(v)
-
-	# Título + robot + cerrar.
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 12)
-	var titulo := _lbl("Consola Git · sandbox", _sans, 26, Tema.TEXTO)
-	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	top.add_child(titulo)
-	_robot = Robot.new()
-	_robot.custom_minimum_size = Vector2(64, 64)
-	top.add_child(_robot)
-	var cerrar := _boton("✕", false)
-	cerrar.custom_minimum_size = Vector2(40, 36)
-	cerrar.pressed.connect(cerrar_modulo)
-	top.add_child(cerrar)
-	v.add_child(top)
+	cuerpo_margin.add_child(v)
 
 	# Barra de ejercicio.
 	v.add_child(_construir_ejercicio())
@@ -169,6 +184,76 @@ func _construir() -> void:
 	b_run.pressed.connect(func(): _on_enter(_consola_in.text))
 	fila_in.add_child(b_run)
 	v.add_child(fila_in)
+
+
+# Barra de título del "SO de Paso": robot de marca como icono (reacciona al progreso),
+# nombre de la ventana y los tres botoncitos clásicos. Cerrar es funcional (reusa
+# cerrar_modulo); minimizar/maximizar son decorativos. Paleta del juego, no imita ningún OS.
+func _construir_titlebar() -> Control:
+	var bar := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tema.PRIMARIO
+	sb.corner_radius_top_left = 16
+	sb.corner_radius_top_right = 16
+	sb.corner_radius_bottom_left = 0
+	sb.corner_radius_bottom_right = 0
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	bar.add_theme_stylebox_override("panel", sb)
+
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	bar.add_child(h)
+
+	_robot = Robot.new()
+	_robot.custom_minimum_size = Vector2(40, 40)
+	_robot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(_robot)
+
+	var titulo := _lbl("Consola Git — tu-proyecto", _sans, 18, Tema.PANEL)   # claro sobre el teal
+	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	h.add_child(titulo)
+
+	# Tres botoncitos: minimizar (ámbar) · maximizar (verde) decorativos, cerrar (rojo) funcional.
+	h.add_child(_os_dot(Tema.CALIDO))
+	h.add_child(_os_dot(Tema.EXITO))
+	h.add_child(_os_boton_cerrar())
+	return bar
+
+
+# Puntito decorativo de la barra de título (un círculo de color, sin acción).
+func _os_dot(color: Color) -> Control:
+	var p := Panel.new()
+	p.custom_minimum_size = Vector2(15, 15)
+	p.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.set_corner_radius_all(8)
+	p.add_theme_stylebox_override("panel", sb)
+	return p
+
+
+# Botoncito de cerrar (el único funcional): reusa el cierre del sandbox que ya existe.
+func _os_boton_cerrar() -> Button:
+	var b := Button.new()
+	b.custom_minimum_size = Vector2(15, 15)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = "Cerrar"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tema.ERROR
+	sb.set_corner_radius_all(8)
+	var hover := sb.duplicate()
+	hover.bg_color = Tema.ERROR.lerp(Color.WHITE, 0.28)
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("hover", hover)
+	b.add_theme_stylebox_override("pressed", sb)
+	b.pressed.connect(cerrar_modulo)
+	return b
 
 
 func _construir_ejercicio() -> Control:
@@ -524,3 +609,46 @@ func _sep() -> HSeparator:
 
 func _boton(txt: String, acento: bool) -> Button:
 	return UiKit.boton(txt, acento, _sans)
+
+
+# ---------------------------------------------------------------------------
+# Escritorio: wallpaper del "SO de Paso" dibujado por código (sin assets). Gradiente
+# suave teal↔arena + dos halos tenues + una rejilla de puntitos discreta. Solo visual
+# (mouse IGNORE); se redibuja al cambiar de tamaño, no cada frame.
+# ---------------------------------------------------------------------------
+class Escritorio extends Control:
+	func _ready() -> void:
+		queue_redraw()
+
+	func _notification(que: int) -> void:
+		if que == NOTIFICATION_RESIZED:
+			queue_redraw()
+
+	func _draw() -> void:
+		var w := size.x
+		var h := size.y
+		if w < 2.0 or h < 2.0:
+			return
+		# Gradiente diagonal (arena con un dejo teal arriba → arena abajo) vía polígono
+		# de 4 colores: da una base de wallpaper sin ser un color plano.
+		var c_tl := Tema.PRIMARIO.lerp(Tema.FONDO, 0.68)
+		var c_tr := Tema.PRIMARIO.lerp(Tema.FONDO, 0.80)
+		var c_br := Tema.FONDO
+		var c_bl := Tema.CALIDO.lerp(Tema.FONDO, 0.84)
+		draw_polygon(
+			PackedVector2Array([Vector2(0, 0), Vector2(w, 0), Vector2(w, h), Vector2(0, h)]),
+			PackedColorArray([c_tl, c_tr, c_br, c_bl]))
+		# Halos grandes muy tenues (profundidad).
+		var d := maxf(w, h)
+		draw_circle(Vector2(w * 0.16, h * 0.20), d * 0.30, Color(Tema.PRIMARIO.r, Tema.PRIMARIO.g, Tema.PRIMARIO.b, 0.07))
+		draw_circle(Vector2(w * 0.88, h * 0.82), d * 0.24, Color(Tema.CALIDO.r, Tema.CALIDO.g, Tema.CALIDO.b, 0.07))
+		# Rejilla de puntitos discreta (textura sutil de escritorio).
+		var paso := 46.0
+		var col_pt := Color(Tema.PRIMARIO.r, Tema.PRIMARIO.g, Tema.PRIMARIO.b, 0.085)
+		var y := paso * 0.5
+		while y < h:
+			var x := paso * 0.5
+			while x < w:
+				draw_circle(Vector2(x, y), 1.6, col_pt)
+				x += paso
+			y += paso
