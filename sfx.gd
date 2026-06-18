@@ -48,8 +48,6 @@ func _ready() -> void:
 	# Balbuceo del robot-tutor: bliplets cortos, agudos y suaves (estilo "personaje que
 	# habla"). ~0.4s: acompaña la aparición de la burbuja, no suena todo el rato.
 	_preparar("tutor",   _balbuceo())
-	# Maullido del gato (easter egg): glide corto y bajito, sube y baja.
-	_preparar("miau",    _secuencia([{"f": 520.0, "d": 0.07, "v": 0.12}, {"f": 720.0, "d": 0.08, "v": 0.13}, {"f": 540.0, "d": 0.11, "v": 0.10}]))
 
 
 # --- API pública: los hooks que llama la UI ---
@@ -60,7 +58,6 @@ func win() -> void:       _play("win")
 func fail() -> void:      _play("fail")
 func record() -> void:    _play("record")
 func tutor() -> void:     _play("tutor")
-func gato() -> void:      _play("miau")
 
 
 # Mute global del jugador, persistido en el .cfg de Puntajes. TODO el audio (incluido el

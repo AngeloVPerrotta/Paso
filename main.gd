@@ -90,12 +90,9 @@ const VERSION := "1.0"
 const URL_REPORTAR_BUG := "https://github.com/AngeloVPerrotta/Paso/issues/new"
 
 # Velocidades: Run rapido / Step lento. paso = seg por tick; anim = duracion de animacion.
-const VELOCIDADES := [
-	{"nombre": "lento",  "paso": 0.70, "anim": 0.46},
-	{"nombre": "normal", "paso": 0.42, "anim": 0.30},
-	{"nombre": "rápido", "paso": 0.16, "anim": 0.13},
-]
-var vel_idx := 1
+# Velocidad ÚNICA fija (la "normal" de antes): un solo ritmo, sin selector.
+const VEL_PASO := 0.42                    # seg por paso (timer de la corrida)
+const VEL_ANIM := 0.30                    # seg de animación de cada valor al correr
 
 # --- Estado de simulacion ---
 var estado
@@ -125,7 +122,6 @@ var salida_box: HBoxContainer
 var estado_label: Label
 var validacion_label: Label
 var boton_run: Button
-var boton_vel: Button
 var timer: Timer
 var capa_anim: Control
 var robot: Robot
@@ -148,9 +144,9 @@ var csharp_capa: Control
 var csharp_texto: TextEdit
 var csharp_titulo: Label                 # "Tu solución en C / C#"
 var boton_codigo: Button                 # "‹/› Ver en C / C#" (barra de controles)
-var boton_validar: Button                # "✓ Validar": arranca deshabilitado hasta correr una vez
-var _hint_validar: Label                 # textito "corré primero" al lado de Validar (cuando está bloqueado)
-var _corrio_este_nivel := false          # runtime: ¿ya corrió/pasó el programa en este nivel?
+var boton_ayuda: Button                  # lamparita de Ayuda: revela «Paso»
+var boton_step: Button                   # «Paso» (oculto hasta tocar Ayuda)
+var _corrida_auto := false               # la corrida la lanzó el botón unificado → valida al terminar
 
 # --- "Aprendé Git": explicador (Capa 1) + sandbox interactivo (Capa 2), módulos aparte ---
 var git_capa: GitExplica
@@ -225,8 +221,6 @@ var _inicio_saludo: Label                # línea de saludo contextual en la pan
 var _ultimo_saludo := ""                 # para no repetir el saludo dos veces seguidas
 var _chiste_pendiente := false           # al cerrar el banner: soltar un comentario seco
 var _chistes_baraja: Array = []          # cola barajada de índices (rotación SIN repetir hasta agotar)
-var _gato: Control                       # easter egg: gato que cruza una esquina
-var _gato_timer: Timer
 var _idle_t := 0.0                       # segundos sin input del jugador
 var _dormido := false                    # el robot del juego está cabeceando
 
@@ -253,13 +247,6 @@ func _ready() -> void:
 	_refrescar_track_ui()
 	_cargar_indice(0)
 	_mostrar_inicio()
-	# Easter egg del gato: timer de baja probabilidad (no en headless/tests).
-	if _puede_tutorial():
-		_gato_timer = Timer.new()
-		_gato_timer.wait_time = 24.0
-		_gato_timer.timeout.connect(_quizas_gato)
-		add_child(_gato_timer)
-		_gato_timer.start()
 	_arrancado = true
 
 
@@ -316,8 +303,6 @@ func _cargar_indice(idx: int) -> void:
 	_repintar_cabecera()
 	_repintar_progreso()
 	_reset_corrida()
-	_corrio_este_nivel = false               # nivel nuevo: hay que correrlo antes de validar
-	_actualizar_validar()
 	if robot:
 		robot.set_mood("idle")
 	_quizas_tutorial()
@@ -532,7 +517,7 @@ func _construir_ui() -> void:
 	_construir_como_funciona()
 
 	timer = Timer.new()
-	timer.wait_time = VELOCIDADES[vel_idx].paso
+	timer.wait_time = VEL_PASO
 	timer.one_shot = false
 	timer.timeout.connect(_on_tick)
 	add_child(timer)
@@ -616,33 +601,31 @@ func _construir_escenario() -> Control:
 
 
 func _construir_controles() -> Control:
-	# VBox: fila de hint (arriba, alineada a la derecha sobre Validar; se oculta al
-	# habilitar) + la fila de botones. Así el hint nunca empuja ni recorta los botones.
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 5)
-	_hint_validar = _etiqueta("Para validar, primero corré tu programa (▶ Correr o ⏯ Paso)", 13, COL_TENUE)
-	_hint_validar.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_hint_validar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_child(_hint_validar)
-
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 10)
 
-	boton_run = _boton_accion("▶ Correr", true)
-	boton_run.pressed.connect(_on_run_pressed)
+	# Botón UNIFICADO: corre la animación y, al terminar, valida solo (ves tu programa antes
+	# del veredicto). Reusa boton_run/_correr/_detener; el handler marca la corrida como "auto".
+	boton_run = _boton_accion("▶ Probar", true)
+	boton_run.tooltip_text = "Corre tu programa y, al terminar, lo valida contra el objetivo."
+	boton_run.pressed.connect(_on_probar_pressed)
 	fila.add_child(boton_run)
-
-	var b_step := _boton_accion("⏯ Paso", false)
-	b_step.pressed.connect(_on_step_pressed)
-	fila.add_child(b_step)
 
 	var b_reset := _boton_accion("↺ Reiniciar", false)
 	b_reset.pressed.connect(_on_reset_pressed)
 	fila.add_child(b_reset)
 
-	boton_vel = _boton_accion("⏩ %s" % VELOCIDADES[vel_idx].nombre, false)
-	boton_vel.pressed.connect(_on_vel_pressed)
-	fila.add_child(boton_vel)
+	# Lamparita de Ayuda: recién acá aparece «Paso», para no invitar a saltear pasos sin entender.
+	boton_ayuda = _boton_accion("💡 Ayuda", false)
+	boton_ayuda.tooltip_text = "¿Trabado? Mostrá «Paso» para ejecutar de a una instrucción."
+	boton_ayuda.pressed.connect(_toggle_ayuda)
+	fila.add_child(boton_ayuda)
+
+	boton_step = _boton_accion("⏯ Paso", false)
+	boton_step.tooltip_text = "Ejecutá una instrucción por vez."
+	boton_step.visible = false                # oculto hasta tocar Ayuda
+	boton_step.pressed.connect(_on_step_pressed)
+	fila.add_child(boton_step)
 
 	var b_ayuda := _boton_accion("? ¿Cómo se juega?", false)
 	b_ayuda.tooltip_text = "Repasá cómo se juega cuando quieras."
@@ -658,13 +641,7 @@ func _construir_controles() -> Control:
 	boton_codigo.pressed.connect(_toggle_csharp)
 	fila.add_child(boton_codigo)
 
-	boton_validar = _boton_accion("✓ Validar", true)
-	boton_validar.pressed.connect(_on_validar_pressed)
-	fila.add_child(boton_validar)
-	col.add_child(fila)
-	_actualizar_validar()                    # arranca deshabilitado + hint visible
-
-	return col
+	return fila
 
 
 # ---------------------------------------------------------------------------
@@ -1516,54 +1493,41 @@ func _avanzar() -> int:
 	return pc_ejecutado
 
 
+# «Paso» (herramienta de ayuda): corre UNA instrucción. No es auto, así que no valida.
 func _on_step_pressed() -> void:
 	_detener()
 	_paso()
-	_marcar_corrio()
 
 
+# Toggle puro de corrida (sin validar). Lo usa el test de UI; el botón unificado usa _on_probar_pressed.
 func _on_run_pressed() -> void:
 	if corriendo:
 		_detener()
 	else:
 		_correr()
-	_marcar_corrio()
 
 
-func _on_reset_pressed() -> void:
-	_reset_corrida()
-	_corrio_este_nivel = false               # Reiniciar re-bloquea Validar (hay que correr de nuevo)
-	_actualizar_validar()
+# Botón UNIFICADO: corre la animación y, al TERMINAR la corrida, valida solo (ver _al_terminar_corrida).
+func _on_probar_pressed() -> void:
+	if corriendo:
+		_detener()                           # segundo toque = pausa (no valida)
+	else:
+		_corrida_auto = true                 # esta corrida valida al terminar
+		_correr()
 
 
-func _on_vel_pressed() -> void:
-	vel_idx = (vel_idx + 1) % VELOCIDADES.size()
-	timer.wait_time = VELOCIDADES[vel_idx].paso
-	boton_vel.text = "⏩ %s" % VELOCIDADES[vel_idx].nombre
+# Lamparita de Ayuda: muestra/oculta «Paso» (la ejecución paso a paso aparece cuando se busca ayuda).
+func _toggle_ayuda() -> void:
+	if boton_step:
+		boton_step.visible = not boton_step.visible
+		if boton_ayuda:
+			boton_ayuda.modulate.a = 0.6 if boton_step.visible else 1.0
 	if sfx:
 		sfx.click()
 
 
-# Gating de Validar (sub-tanda C): el jugador tiene que CORRER (o pasar) su programa al
-# menos una vez en el nivel antes de poder validar, así ve qué hace antes del veredicto.
-# Es de runtime (al recargar/reiniciar el nivel vuelve a pedirlo). NO toca la validación:
-# solo prende/apaga el botón; _on_validar_pressed sigue igual.
-func _marcar_corrio() -> void:
-	if _corrio_este_nivel:
-		return
-	_corrio_este_nivel = true
-	_actualizar_validar()
-
-
-func _actualizar_validar() -> void:
-	if boton_validar == null:
-		return
-	boton_validar.disabled = not _corrio_este_nivel
-	boton_validar.modulate.a = 1.0 if _corrio_este_nivel else 0.45
-	boton_validar.tooltip_text = ("Comprobá tu solución contra el objetivo."
-		if _corrio_este_nivel else "Primero corré tu programa (▶ Correr o ⏯ Paso) para ver qué hace.")
-	if _hint_validar:
-		_hint_validar.visible = not _corrio_este_nivel
+func _on_reset_pressed() -> void:
+	_reset_corrida()
 
 
 func _on_validar_pressed() -> void:
@@ -1636,6 +1600,15 @@ func _paso() -> void:
 		_detener()
 		if robot:
 			robot.set_mood("idle")
+		_al_terminar_corrida()
+
+
+# Corrida terminada: acá disparamos lo que depende de "ya viste correr el programa".
+func _al_terminar_corrida() -> void:
+	_tutorial_evento("run")                  # #3: el "¿viste el viaje?" avanza al TERMINAR (no al arrancar)
+	if _corrida_auto:                        # #8: el botón unificado valida tras la corrida
+		_corrida_auto = false
+		_on_validar_pressed()
 
 
 func _correr() -> void:
@@ -1646,13 +1619,12 @@ func _correr() -> void:
 	if robot:
 		robot.set_mood("pensando")
 	timer.start()
-	_tutorial_evento("run")
 
 
 func _detener() -> void:
 	corriendo = false
 	if boton_run:
-		boton_run.text = "▶ Correr"
+		boton_run.text = "▶ Probar"
 	if timer:
 		timer.stop()
 
@@ -1666,6 +1638,7 @@ func _on_tick() -> void:
 
 func _reset_corrida() -> void:
 	_detener()
+	_corrida_auto = false                    # editar/resetear cancela la validación automática pendiente
 	estado = Interprete.Estado.new(entrada_inicial, cantidad_slots)
 	programa_run = Interprete.resolver_etiquetas(programa)
 	pasos = 0
@@ -1767,8 +1740,8 @@ func _pintar_fila(box: HBoxContainer, valores: Array, mostrar_vacias: bool) -> v
 # Juice: animacion de la ejecucion. Cosmetica pura; nunca muta el estado.
 # ---------------------------------------------------------------------------
 func _dur_anim() -> float:
-	# Run usa la velocidad elegida; Step (no corriendo) va mas lento para que se lea.
-	return VELOCIDADES[vel_idx].anim if corriendo else 0.34
+	# Run usa la velocidad fija; Step (no corriendo) va mas lento para que se lea.
+	return VEL_ANIM if corriendo else 0.34
 
 
 func _animar(pc_ejecutado: int, mano_antes) -> void:
@@ -2121,7 +2094,9 @@ func _quizas_primeras_veces() -> void:
 		pasos.append({"texto": "« TU PROGRAMA » — la lista de órdenes, en orden.", "flag": "pv_programa", "objetivo": func(): return programa_vbox})
 	if pasos.is_empty():
 		return
-	_tuto_pasos = pasos
+	# UNA zona por nivel (no encolamos todas): mostramos la primera no vista; las demás
+	# caen en los siguientes niveles. Cada paso marca su flag pv_*, así no se repiten.
+	_tuto_pasos = [pasos[0]]
 	_tuto_i = 0
 	_tuto_marca_visto = false                    # no marca tuto_<id>; cada paso marca su propio flag pv_*
 	call_deferred("_tutorial_arrancar")
@@ -2216,7 +2191,8 @@ func _tutorial_arrancar() -> void:
 
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 8)
-	var saltar := _boton_accion("Saltar tutorial" if _tuto_marca_visto else "Cerrar", false)
+	# Link tenue (no botón sólido): no compite con el botón objetivo resaltado.
+	var saltar := _boton_link("Saltar tutorial" if _tuto_marca_visto else "Cerrar")
 	saltar.pressed.connect(_saltar_tutorial)
 	fila.add_child(saltar)
 	var sp := Control.new()
@@ -2535,45 +2511,6 @@ func _comentario_ganar_random() -> void:
 	_robot_comenta(CHISTES_GANAR[i], "feliz")
 
 
-# Easter egg del gato: cada tanto (raro, impredecible) un gato cruza el borde y se va.
-func _quizas_gato() -> void:
-	if _gato_timer:
-		_gato_timer.wait_time = randf_range(20.0, 42.0)   # intervalo impredecible
-	if _gato and is_instance_valid(_gato):
-		return                                            # ya hay uno cruzando
-	if randf() < 0.16:
-		_lanzar_gato()
-
-
-func _lanzar_gato() -> void:
-	if not _puede_tutorial():
-		return
-	if _gato and is_instance_valid(_gato):
-		return
-	var g := Gato.new()
-	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	g.size = Vector2(56, 40)
-	add_child(g)
-	move_child(g, get_child_count() - 1)        # por encima de todo (decorativo, no roba foco)
-	_gato = g
-	var y := size.y - 56.0
-	var desde_izq := randf() < 0.5
-	var x0 := -80.0 if desde_izq else size.x + 80.0
-	var x1 := (size.x + 80.0) if desde_izq else -80.0
-	g.position = Vector2(x0, y)
-	if not desde_izq:                            # entra de la derecha → camina y mira a la izquierda
-		g.pivot_offset = g.size * 0.5
-		g.scale.x = -1.0
-	if sfx:
-		sfx.gato()                               # miau bajito (respeta el mute global)
-	var tw := create_tween()
-	tw.tween_property(g, "position:x", x1, 3.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_callback(func():
-		if is_instance_valid(g):
-			g.queue_free()
-		_gato = null)
-
-
 # Ajuste D: cuántas veces ya se mostró el código-al-ganar (tope 3). Vive en el .cfg de
 # Puntajes → "Reiniciar progreso" lo resetea con el resto. La API de flags es bool-only
 # (no hay setter de int), así que el contador se representa con 3 flags cod_ganar_1/2/3.
@@ -2789,29 +2726,6 @@ func _str_valor(v) -> String:
 # ---------------------------------------------------------------------------
 
 # Onda: anillo (color primario) que se expande y se desvanece. Cosmetico.
-class Gato extends Control:
-	# Silueta de gato dibujada por código (paleta del juego). Mira a la derecha; el que
-	# entra desde la derecha se espeja con scale.x = -1 en _lanzar_gato. Solo decorativo.
-	func _draw() -> void:
-		var col := Tema.TEXTO
-		var cy := 22.0
-		# Cuerpo: grupa + pecho + puente (una sola silueta).
-		draw_circle(Vector2(17, cy), 12.0, col)
-		draw_circle(Vector2(37, cy + 1), 10.0, col)
-		draw_rect(Rect2(17, cy - 12, 20, 22), col)
-		# Cabeza + orejas.
-		draw_circle(Vector2(46, 15), 8.0, col)
-		draw_colored_polygon(PackedVector2Array([Vector2(39, 11), Vector2(42, 1), Vector2(47, 10)]), col)
-		draw_colored_polygon(PackedVector2Array([Vector2(47, 10), Vector2(52, 1), Vector2(53, 12)]), col)
-		# Cola curva.
-		draw_polyline(PackedVector2Array([Vector2(8, 25), Vector2(2, 14), Vector2(7, 5)]), col, 3.5)
-		# Patitas.
-		for px in [16.0, 24.0, 33.0, 40.0]:
-			draw_line(Vector2(px, cy + 9), Vector2(px, cy + 17), col, 3.0)
-		# Ojo ámbar: un puntito, algo de vida sin texto.
-		draw_circle(Vector2(49, 14), 1.7, Tema.CALIDO)
-
-
 class Onda extends Control:
 	var color := Tema.PRIMARIO
 	var _centro := Vector2.ZERO
@@ -2843,6 +2757,13 @@ class Spotlight extends Control:
 	var marco := Tema.PRIMARIO
 	var permitir_hueco := false
 	var mostrar_velo := true
+	var _t := 0.0                            # fase del pulso del marco (pasos interactivos)
+
+	func _process(delta: float) -> void:
+		# Solo animamos (y redibujamos) cuando hay un objetivo interactivo que pulsar.
+		if permitir_hueco and objetivo.size != Vector2.ZERO:
+			_t += delta
+			queue_redraw()
 
 	# Picking: con velo, captura todo MENOS el hueco interactivo. Sin velo, no captura.
 	func _has_point(p: Vector2) -> bool:
@@ -2864,5 +2785,8 @@ class Spotlight extends Control:
 		draw_rect(Rect2(0, o.position.y + o.size.y, size.x, size.y - (o.position.y + o.size.y)), velo)  # abajo
 		draw_rect(Rect2(0, o.position.y, o.position.x, o.size.y), velo)                       # izquierda
 		draw_rect(Rect2(o.position.x + o.size.x, o.position.y, size.x - (o.position.x + o.size.x), o.size.y), velo)  # derecha
-		# Marco coral alrededor del hueco (afford: "tocá acá").
+		# Marco alrededor del hueco. En pasos interactivos, pulso/glow para gritar "tocá acá".
+		if permitir_hueco:
+			var p := 0.5 + 0.5 * sin(_t * 4.2)
+			draw_rect(o.grow(3.0 + 4.0 * p), Color(marco.r, marco.g, marco.b, 0.22 + 0.4 * p), false, 3.0)
 		draw_rect(o, marco, false, 2.0)

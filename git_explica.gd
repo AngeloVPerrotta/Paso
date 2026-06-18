@@ -552,15 +552,11 @@ class Lienzo extends Control:
 	# --- Primitivas ---
 	# label_off: dónde va el rótulo respecto al centro (>0 abajo, <0 arriba).
 	func _marco_foto(c: Vector2, label: String, label_off := 60.0) -> void:
+		# Caja/contenedor donde "guardás" (ya no una cámara): rrect + línea de tapa.
 		var r := Rect2(c.x - 56, c.y - 42, 112, 84)
-		_rrect(r, 6.0, Tema.PRIMARIO_TENUE, Tema.PRIMARIO)
-		# Esquinas tipo visor de cámara (afford: "la foto").
-		var l := 14.0
-		for esq in [[r.position, Vector2(1, 1)], [Vector2(r.end.x, r.position.y), Vector2(-1, 1)], [Vector2(r.position.x, r.end.y), Vector2(1, -1)], [r.end, Vector2(-1, -1)]]:
-			var pe: Vector2 = esq[0]
-			var d: Vector2 = esq[1]
-			draw_line(pe, pe + Vector2(l * d.x, 0), Tema.PRIMARIO, 3.0)
-			draw_line(pe, pe + Vector2(0, l * d.y), Tema.PRIMARIO, 3.0)
+		_rrect(r, 8.0, Tema.PRIMARIO_TENUE, Tema.PRIMARIO)
+		var tapa := Color(Tema.PRIMARIO.r, Tema.PRIMARIO.g, Tema.PRIMARIO.b, 0.45)
+		draw_line(Vector2(r.position.x + 12, r.position.y + 22), Vector2(r.end.x - 12, r.position.y + 22), tapa, 2.0)
 		_texto(label, Vector2(c.x - 42, c.y + label_off), 12, Tema.PRIMARIO)
 
 	func _pc(c: Vector2) -> void:
@@ -596,12 +592,17 @@ class Lienzo extends Control:
 			_foto(base + Vector2(k * 8, -k * 8), 1.0, Tema.PRIMARIO)
 		_texto(label, Vector2(base.x - 36, base.y + 34), 12, Tema.TENUE)
 
+	# Archivo/cajita guardada (ya no una polaroid): rrect + esquina doblada + renglones.
 	func _foto(pos: Vector2, s: float, color: Color) -> void:
 		var w := 26.0 * s
 		var h := 22.0 * s
 		var r := Rect2(pos.x - w * 0.5, pos.y - h * 0.5, w, h)
 		_rrect(r, 3.0, Tema.PANEL, color)
-		draw_rect(Rect2(r.position.x + 3, r.position.y + 3, w - 6, 6 * s), color)
+		var dog := 6.0 * s
+		draw_colored_polygon(PackedVector2Array([Vector2(r.end.x - dog, r.position.y), Vector2(r.end.x, r.position.y + dog), Vector2(r.end.x - dog, r.position.y + dog)]), color)
+		var lc := Color(color.r, color.g, color.b, 0.7)
+		draw_line(Vector2(r.position.x + 4, r.position.y + h * 0.55), Vector2(r.end.x - 4, r.position.y + h * 0.55), lc, 1.5)
+		draw_line(Vector2(r.position.x + 4, r.position.y + h * 0.72), Vector2(r.position.x + w * 0.62, r.position.y + h * 0.72), lc, 1.5)
 
 	func _texto(s: String, pos: Vector2, tam: int, color: Color) -> void:
 		if sans:

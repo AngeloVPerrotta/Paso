@@ -27,6 +27,8 @@ var _robot: Robot
 var _ej_label: Label
 var _ej_estado: Label
 var _ej_btn: Button
+var _ej_panel: PanelContainer            # panel del ejercicio (para la transición de auto-avance)
+var _avanzando := false                  # transición de auto-avance en curso (evita doble disparo)
 var _ej_pista_btn: Button
 var _ej_pista_label: Label
 var _pista_nivel := 0            # 0 = nada revelado, 1 = pista conceptual, 2 = comando
@@ -61,6 +63,9 @@ func abrir() -> void:
 	_ej_pull_base = -1
 	_vio_status = false
 	_vio_log = false
+	_avanzando = false
+	if _ej_panel:
+		_ej_panel.modulate.a = 1.0           # por si quedó a medio fade de una transición previa
 	_consola_out.clear()
 	_log_info("Sandbox de git. Escribí comandos reales abajo. Empezá por: git init")
 	_refrescar()
@@ -258,6 +263,7 @@ func _os_boton_cerrar() -> Button:
 
 func _construir_ejercicio() -> Control:
 	var panel := _panel(Tema.PRIMARIO_TENUE, Tema.PRIMARIO)
+	_ej_panel = panel
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 6)
 	panel.add_child(col)
@@ -496,11 +502,11 @@ func _ejercicios() -> Array:
 			"comando": "git add .",
 			"hecho": func(): return not modelo.con_estado(GitMini.PREPARADO).is_empty() or modelo.commits.size() >= 1},
 		{"texto": "Guardá tu primer commit, con un mensaje.",
-			"pista": "Un commit es una foto del proyecto. El mensaje va entre comillas, con la opción -m.",
+			"pista": "Un commit es un punto guardado de tu proyecto. El mensaje va entre comillas, con -m.",
 			"comando": "git commit -m \"primer commit\"",
 			"hecho": func(): return modelo.commits.size() >= 1},
 		{"texto": "Mirá tu historial de commits.",
-			"pista": "Hay un comando que lista las fotos que ya guardaste.",
+			"pista": "Hay un comando que lista los commits que ya guardaste.",
 			"comando": "git log",
 			"hecho": func(): return _vio_log},
 		{"texto": "Subí tu trabajo a la nube.",
@@ -530,6 +536,7 @@ func _mostrar_ejercicio() -> void:
 	if _ejercicio >= ejs.size():
 		_ejercicio = ejs.size() - 1
 	var e: Dictionary = ejs[_ejercicio]
+	_avanzando = false                       # nuevo paso: listo para volver a auto-avanzar al completarlo
 	_ej_label.text = "Ejercicio %d/%d:  %s" % [_ejercicio + 1, ejs.size(), e.texto]
 	# Reset de la ayuda graduada al entrar a un paso nuevo (el último no tiene comando).
 	_pista_nivel = 0
@@ -563,12 +570,18 @@ func _chequear_ejercicio() -> void:
 	_ej_btn.text = "Cerrar" if ultimo else "Siguiente ▶"
 	_ej_btn.disabled = not hecho and not ultimo
 	_ej_btn.modulate.a = 1.0 if (hecho or ultimo) else 0.4
+	# Avance dinámico (no headless): al completar un paso no-último, pasa SOLO al siguiente.
+	# El botón queda solo para el «Cerrar» final. En headless el botón es el camino (test_git_ui).
+	if not _headless():
+		_ej_btn.visible = ultimo
 	if _robot:
 		# El último paso (flujo completo) cierra con fiesta; los demás, feliz/pensando.
 		if hecho and ultimo:
 			_robot.set_mood("fiesta")
 		else:
 			_robot.set_mood("feliz" if hecho else "pensando")
+	if hecho and not ultimo and not _avanzando and not _headless():
+		_avanzar_auto()
 
 
 func _ejercicio_siguiente() -> void:
@@ -578,6 +591,30 @@ func _ejercicio_siguiente() -> void:
 		return
 	_ejercicio += 1
 	_mostrar_ejercicio()
+
+
+func _headless() -> bool:
+	return DisplayServer.get_name() == "headless"
+
+
+# Avance dinámico: deja ver el ✓ un instante, hace un fade y pasa solo al próximo ejercicio.
+func _avanzar_auto() -> void:
+	_avanzando = true
+	var t := create_tween()
+	t.tween_interval(0.85)                   # deja leer el ✓ del paso completado
+	t.tween_callback(_fade_y_avanzar)
+
+
+func _fade_y_avanzar() -> void:
+	if not _avanzando:
+		return
+	if _ej_panel == null:
+		_ejercicio_siguiente()
+		return
+	var t := create_tween()
+	t.tween_property(_ej_panel, "modulate:a", 0.0, 0.18)
+	t.tween_callback(_ejercicio_siguiente)   # cambia el texto al próximo (resetea _avanzando)
+	t.tween_property(_ej_panel, "modulate:a", 1.0, 0.22)
 
 
 # ---------------------------------------------------------------------------
