@@ -116,6 +116,10 @@ func _draw() -> void:
 		"pensando":
 			_ojo_redondo(Vector2(cx - sep, ojo_y), 0.5)
 			_ojo_redondo(Vector2(cx + sep, ojo_y), 0.5)
+		"dormido":
+			# Ojos cerrados (cabecea cuando el jugador lo deja quieto un rato).
+			draw_line(Vector2(cx - sep - 4, ojo_y), Vector2(cx - sep + 4, ojo_y), Color.WHITE, 2.0)
+			draw_line(Vector2(cx + sep - 4, ojo_y), Vector2(cx + sep + 4, ojo_y), Color.WHITE, 2.0)
 		_:
 			_ojo_redondo(Vector2(cx - sep, ojo_y), 1.0 - _blink)
 			_ojo_redondo(Vector2(cx + sep, ojo_y), 1.0 - _blink)
@@ -137,10 +141,14 @@ func _draw() -> void:
 		var intens := 0.35 + 0.65 * exp(-3.0 * _habla)
 		sway = sin(_habla * 21.0) * 3.4 * intens
 	var tip := antena_base + Vector2(sway, -13)
+	if mood == "dormido":
+		tip = antena_base + Vector2(8.0, -5.0)   # antena caída: dormido
 	draw_line(antena_base, tip, COL_OJO, 2.0)
 	var brillo := COL_ACENTO
 	if mood == "fiesta":
 		brillo = COL_ACENTO.lerp(Color.WHITE, 0.5 + 0.5 * sin(_antena * 12.0))
+	elif mood == "dormido":
+		brillo = Color(COL_ACENTO.r, COL_ACENTO.g, COL_ACENTO.b, 0.45)   # luz tenue
 	draw_circle(tip + Vector2(0, -2), 4.5 * late, brillo)
 
 

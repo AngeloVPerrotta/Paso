@@ -201,6 +201,35 @@ var _codigo_modo_ganar := false          # el panel de código está en modo "al
 var _codigo_x: Button                    # ✕ del panel (se oculta en modo ganar)
 var _codigo_footer: HBoxContainer        # footer del panel en modo ganar (Seguir / Siguiente nivel)
 
+# --- Humor (presentación pura): saludos contextuales, comentarios al ganar, gato, idle ---
+# Secos, una línea, rioplatense. Sin signos de más, sin "jaja", sin emojis de risa.
+const SALUDOS_MADRUGADA := ["Buenas, noctámbulo.", "A esta hora se piensa mejor."]
+const SALUDOS_MANANA := ["Café y lógica.", "Día de puzzles.", "Arrancamos."]
+const SALUDOS_TARDE := ["Seguimos donde quedamos.", "Otra vez por acá.", "La tarde rinde."]
+const SALUDOS_NOCHE := ["De vuelta.", "La noche es de los que piensan."]
+const SALUDOS_GENERICOS := ["Por acá de nuevo.", "Listo cuando vos."]
+const SALUDO_FINDE := "Finde de código."
+const CHISTES_GANAR := [
+	"Funcionó a la primera. Sospechoso.",
+	"Funciona y no sé por qué. Dejémoslo así.",
+	"Eso es un bug. Bueno, una feature no documentada.",
+	"Menos líneas. Tu yo del futuro te lo agradece.",
+	"Salió. No toques nada.",
+	"Cero warnings. Hoy es un buen día.",
+	"Funciona en mi máquina.",
+	"Si funciona, no es estúpido.",
+]
+const CHISTE_PROB := 0.5                 # prob. de soltar un comentario al ganar (cuando NO se muestra el código)
+const IDLE_SEG := 45.0                   # segundos quieto antes de que el robot cabecee
+var _inicio_saludo: Label                # línea de saludo contextual en la pantalla de inicio
+var _ultimo_saludo := ""                 # para no repetir el saludo dos veces seguidas
+var _chiste_pendiente := false           # al cerrar el banner: soltar un comentario seco
+var _chistes_baraja: Array = []          # cola barajada de índices (rotación SIN repetir hasta agotar)
+var _gato: Control                       # easter egg: gato que cruza una esquina
+var _gato_timer: Timer
+var _idle_t := 0.0                       # segundos sin input del jugador
+var _dormido := false                    # el robot del juego está cabeceando
+
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -224,7 +253,38 @@ func _ready() -> void:
 	_refrescar_track_ui()
 	_cargar_indice(0)
 	_mostrar_inicio()
+	# Easter egg del gato: timer de baja probabilidad (no en headless/tests).
+	if _puede_tutorial():
+		_gato_timer = Timer.new()
+		_gato_timer.wait_time = 24.0
+		_gato_timer.timeout.connect(_quizas_gato)
+		add_child(_gato_timer)
+		_gato_timer.start()
 	_arrancado = true
+
+
+# Idle (humor sutil): si el jugador deja el juego quieto un rato, el robot del nivel
+# cabecea (ojos cerrados). Cualquier input lo despierta. No corre en headless/tests.
+func _input(_event: InputEvent) -> void:
+	_idle_t = 0.0
+	if _dormido:
+		_dormido = false
+		if robot and robot.mood == "dormido":
+			robot.set_mood("idle")
+
+
+func _process(delta: float) -> void:
+	if not _puede_tutorial():
+		return
+	if inicio_capa and inicio_capa.visible:
+		_idle_t = 0.0
+		return
+	if _dormido and robot and robot.mood != "dormido":
+		_dormido = false                 # el juego cambió el mood (corrida/victoria): ya no duerme
+	_idle_t += delta
+	if not _dormido and _idle_t >= IDLE_SEG and robot and robot.mood == "idle" and not corriendo:
+		_dormido = true
+		robot.set_mood("dormido")
 
 
 func _cargar_nivel(id: String) -> void:
@@ -636,6 +696,12 @@ func _construir_inicio() -> void:
 	_inicio_robot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(_inicio_robot)
 
+	# Saludo contextual del robot (cambia según hora/día; lo setea _mostrar_inicio).
+	_inicio_saludo = _etiqueta("", 15, COL_TENUE)
+	_inicio_saludo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_inicio_saludo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(_inicio_saludo)
+
 	var titulo := Label.new()
 	titulo.text = "Paso"
 	titulo.add_theme_font_override("font", fuente_sans)
@@ -743,6 +809,8 @@ func _mostrar_inicio() -> void:
 			_btn_continuar.visible = false
 	if _inicio_robot:
 		_inicio_robot.set_mood("feliz")
+	if _inicio_saludo:
+		_inicio_saludo.text = _saludo_contextual()
 	_tutor_cerrar_inmediato()
 	inicio_capa.visible = true
 	inicio_capa.move_to_front()
@@ -801,7 +869,32 @@ func _abrir_modal(ancho_min: int) -> VBoxContainer:
 
 
 func _reportar_bug() -> void:
-	OS.shell_open(URL_REPORTAR_BUG)
+	var v := _abrir_modal(440)
+	var capa: Control = v.get_meta("capa")
+	v.add_child(_etiqueta("Reportar un bug", 22, COL_TEXTO))
+	var cuerpo := Label.new()
+	cuerpo.text = "¿Algo se rompió o se portó raro? Contámelo y lo reviso. " \
+		+ "Se abre el formulario en tu navegador."
+	cuerpo.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cuerpo.custom_minimum_size = Vector2(400, 0)
+	cuerpo.add_theme_font_override("font", fuente_sans)
+	cuerpo.add_theme_font_size_override("font_size", 15)
+	cuerpo.add_theme_color_override("font_color", COL_TENUE)
+	v.add_child(cuerpo)
+
+	var abrir := _boton_accion("Abrir el formulario", true)
+	abrir.pressed.connect(func(): OS.shell_open(URL_REPORTAR_BUG))
+	v.add_child(abrir)
+	var cerrar := _boton_accion("Cerrar", false)
+	cerrar.pressed.connect(capa.queue_free)
+	v.add_child(cerrar)
+
+	# Toque de personalidad al pie (seco, sin avisar que es chiste).
+	var pie := _etiqueta("Ningún ; fue olvidado en la creación de este juego.", 12, COL_TENUE)
+	pie.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	pie.custom_minimum_size = Vector2(400, 0)
+	pie.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(pie)
 
 
 func _acerca_de() -> void:
@@ -1517,6 +1610,9 @@ func _on_validar_pressed() -> void:
 		_celebrar(r.score.instrucciones, r.score.pasos, es_par, es_record)
 		# Ajuste D: el código-al-ganar solo las PRIMERAS 3 victorias; de ahí en más, banner solo.
 		_gano_pendiente = _puede_tutorial() and _veces_cod_ganar() < 3
+		# Humor: a veces un comentario seco al ganar, SOLO cuando no se muestra el código
+		# (nunca dos cosas hablando) y con probabilidad (no en cada nivel, para no cansar).
+		_chiste_pendiente = (not _gano_pendiente) and _puede_tutorial() and randf() < CHISTE_PROB
 	else:
 		validacion_label.text = "✗  %s" % _mensaje_falla(r)
 		validacion_label.add_theme_color_override("font_color", COL_ERROR)
@@ -1886,6 +1982,9 @@ func _descartar_banner(banner: Control) -> void:
 	if _gano_pendiente:
 		_gano_pendiente = false
 		t.tween_callback(_mostrar_codigo_al_ganar)
+	elif _chiste_pendiente:
+		_chiste_pendiente = false
+		t.tween_callback(_comentario_ganar_random)
 
 
 # ---------------------------------------------------------------------------
@@ -2399,6 +2498,82 @@ func _quizas_comentario_primer_programa() -> void:
 		Puntajes.set_flag("vio_robot_prog", true)
 
 
+# Saludo seco según hora/día reales (Time). Rota sin repetir el último mostrado.
+func _saludo_contextual() -> String:
+	var ahora := Time.get_datetime_dict_from_system()
+	var hora := int(ahora.get("hour", 12))
+	var dia := int(ahora.get("weekday", 1))    # 0=domingo ... 6=sábado
+	var pool: Array = []
+	if dia == 0 or dia == 6:
+		pool.append(SALUDO_FINDE)
+	if hora < 6:
+		pool.append_array(SALUDOS_MADRUGADA)
+	elif hora < 12:
+		pool.append_array(SALUDOS_MANANA)
+	elif hora < 19:
+		pool.append_array(SALUDOS_TARDE)
+	else:
+		pool.append_array(SALUDOS_NOCHE)
+	pool.append_array(SALUDOS_GENERICOS)
+	var opciones := pool.filter(func(s): return s != _ultimo_saludo)
+	if opciones.is_empty():
+		opciones = pool
+	var elegido: String = opciones[randi() % opciones.size()]
+	_ultimo_saludo = elegido
+	return elegido
+
+
+# Comentario seco al ganar (rotación SIN repetir hasta agotar el pool). Reusa el robot+
+# burbuja del tutor; _robot_comenta ya garantiza "nunca dos cosas hablando a la vez".
+func _comentario_ganar_random() -> void:
+	if CHISTES_GANAR.is_empty():
+		return
+	if _chistes_baraja.is_empty():
+		_chistes_baraja = range(CHISTES_GANAR.size())
+		_chistes_baraja.shuffle()
+	var i: int = _chistes_baraja.pop_back()
+	_robot_comenta(CHISTES_GANAR[i], "feliz")
+
+
+# Easter egg del gato: cada tanto (raro, impredecible) un gato cruza el borde y se va.
+func _quizas_gato() -> void:
+	if _gato_timer:
+		_gato_timer.wait_time = randf_range(20.0, 42.0)   # intervalo impredecible
+	if _gato and is_instance_valid(_gato):
+		return                                            # ya hay uno cruzando
+	if randf() < 0.16:
+		_lanzar_gato()
+
+
+func _lanzar_gato() -> void:
+	if not _puede_tutorial():
+		return
+	if _gato and is_instance_valid(_gato):
+		return
+	var g := Gato.new()
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g.size = Vector2(56, 40)
+	add_child(g)
+	move_child(g, get_child_count() - 1)        # por encima de todo (decorativo, no roba foco)
+	_gato = g
+	var y := size.y - 56.0
+	var desde_izq := randf() < 0.5
+	var x0 := -80.0 if desde_izq else size.x + 80.0
+	var x1 := (size.x + 80.0) if desde_izq else -80.0
+	g.position = Vector2(x0, y)
+	if not desde_izq:                            # entra de la derecha → camina y mira a la izquierda
+		g.pivot_offset = g.size * 0.5
+		g.scale.x = -1.0
+	if sfx:
+		sfx.gato()                               # miau bajito (respeta el mute global)
+	var tw := create_tween()
+	tw.tween_property(g, "position:x", x1, 3.6).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(func():
+		if is_instance_valid(g):
+			g.queue_free()
+		_gato = null)
+
+
 # Ajuste D: cuántas veces ya se mostró el código-al-ganar (tope 3). Vive en el .cfg de
 # Puntajes → "Reiniciar progreso" lo resetea con el resto. La API de flags es bool-only
 # (no hay setter de int), así que el contador se representa con 3 flags cod_ganar_1/2/3.
@@ -2614,6 +2789,29 @@ func _str_valor(v) -> String:
 # ---------------------------------------------------------------------------
 
 # Onda: anillo (color primario) que se expande y se desvanece. Cosmetico.
+class Gato extends Control:
+	# Silueta de gato dibujada por código (paleta del juego). Mira a la derecha; el que
+	# entra desde la derecha se espeja con scale.x = -1 en _lanzar_gato. Solo decorativo.
+	func _draw() -> void:
+		var col := Tema.TEXTO
+		var cy := 22.0
+		# Cuerpo: grupa + pecho + puente (una sola silueta).
+		draw_circle(Vector2(17, cy), 12.0, col)
+		draw_circle(Vector2(37, cy + 1), 10.0, col)
+		draw_rect(Rect2(17, cy - 12, 20, 22), col)
+		# Cabeza + orejas.
+		draw_circle(Vector2(46, 15), 8.0, col)
+		draw_colored_polygon(PackedVector2Array([Vector2(39, 11), Vector2(42, 1), Vector2(47, 10)]), col)
+		draw_colored_polygon(PackedVector2Array([Vector2(47, 10), Vector2(52, 1), Vector2(53, 12)]), col)
+		# Cola curva.
+		draw_polyline(PackedVector2Array([Vector2(8, 25), Vector2(2, 14), Vector2(7, 5)]), col, 3.5)
+		# Patitas.
+		for px in [16.0, 24.0, 33.0, 40.0]:
+			draw_line(Vector2(px, cy + 9), Vector2(px, cy + 17), col, 3.0)
+		# Ojo ámbar: un puntito, algo de vida sin texto.
+		draw_circle(Vector2(49, 14), 1.7, Tema.CALIDO)
+
+
 class Onda extends Control:
 	var color := Tema.PRIMARIO
 	var _centro := Vector2.ZERO
