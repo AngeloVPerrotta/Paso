@@ -17,30 +17,34 @@ const PORTFOLIO = "https://angeloperrotta.online";
 const year = new Date().getFullYear();
 
 const bullets = [
-  { icono: "apilar", titulo: "Programás apilando instrucciones",
-    desc: "Arrastrás órdenes simples (agarrá, guardá, sumá, saltá) en vez de escribir sintaxis." },
-  { icono: "robot", titulo: "Un robot las ejecuta paso a paso",
-    desc: "Ves el estado cambiar en cada paso: la mano, la memoria, las colas de entrada y salida." },
-  { icono: "codigo", titulo: "Después lo ves traducido a código real",
-    desc: "El mismo programa, mostrado en C y C# comentado y legible." },
+  { icono: "apilar", titulo: "Armás programas sin escribir código",
+    desc: "Arrastrás órdenes simples —agarrá, guardá, sumá, saltá— y las apilás. Cero sintaxis, cero punto y coma." },
+  { icono: "robot", titulo: "Un robot ejecuta tu lógica, a la vista",
+    desc: "Lo ves correr paso a paso: la mano que agarra, la memoria y las colas de entrada y salida cambiando en vivo." },
+  { icono: "codigo", titulo: "Y lo ves en código real",
+    desc: "El mismo programa traducido a C y C#, comentado y legible. El puente para dar el salto a programar de verdad." },
 ] as const;
 ---
 
 <Base>
   <!-- ── HERO ─────────────────────────────────────────────────────────── -->
-  <a class="logo" href="/">Paso</a>
+  <a class="logo" href="/" aria-label="Paso — inicio">
+    <span class="logo__mark"><Robot variant="mark" /></span>
+    <span class="logo__word">Paso</span>
+  </a>
   <header class="hero">
     <div class="hero__robot" data-parallax>
       <Robot />
     </div>
     <div class="hero__texto">
+      <p class="eyebrow hero__kicker">Juego de lógica · C y C#</p>
       <h1>Paso</h1>
-      <p class="hero__tagline">Un juego de lógica: programá la solución, paso a paso.</p>
+      <p class="hero__tagline">Aprendé a programar jugando: armás la solución pieza por pieza y un robot la ejecuta.</p>
       <div class="cta-fila">
         <Boton href={URL_JUGAR} variant="primary" label="▶  Jugar en el navegador" />
         <Boton href={URL_DESCARGA} variant="secondary" label="⬇  Descargar para Windows" />
       </div>
-      <p class="cta-micro">Gratis · sin instalar nada para probarlo.</p>
+      <p class="cta-micro">Gratis y sin registro · probás en el navegador, sin instalar nada.</p>
     </div>
   </header>
 
@@ -66,6 +70,10 @@ const bullets = [
   <!-- ── CAPTURAS ─────────────────────────────────────────────────────── -->
   <section data-reveal>
     <div class="container">
+      <header class="bloque-head">
+        <p class="eyebrow">Un vistazo</p>
+        <h2>Así se ve por dentro</h2>
+      </header>
       <div class="grid-capturas">
         <figure class="shot">
           <img src="/shots/shot_inicio.png" width="1000" height="900" loading="lazy" decoding="async"
@@ -86,10 +94,11 @@ const bullets = [
     <div class="container">
       <div class="git__head">
         <span class="git__sello">★ El diferencial</span>
-        <h2>No solo programás: aprendés Git de verdad</h2>
+        <h2>Y encima, aprendés Git de verdad</h2>
         <p class="lede muted">
-          Un módulo aparte te enseña Git y GitHub: qué es un repo, local vs nube, y una
-          consola donde tipeás comandos reales y ves los archivos moverse.
+          Un módulo aparte arranca de cero: qué es un repositorio, tu compu contra la
+          nube, y una consola donde escribís comandos de verdad y ves los archivos
+          moverse de un lado al otro.
         </p>
       </div>
       <div class="git__capturas">
@@ -115,7 +124,7 @@ const bullets = [
   <!-- ── CTA FINAL ────────────────────────────────────────────────────── -->
   <section class="centro" data-reveal>
     <div class="container">
-      <h2>Probalo ahora —no necesitás instalar nada.</h2>
+      <h2>Probá un nivel ahora. Se juega en el navegador, gratis.</h2>
       <div class="cta-fila">
         <Boton href={URL_JUGAR} variant="primary" label="▶  Jugar en el navegador" />
         <Boton href={URL_DESCARGA} variant="secondary" label="⬇  Descargar para Windows" />

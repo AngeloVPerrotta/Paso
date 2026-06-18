@@ -64,7 +64,7 @@ img { max-width: 100%; height: auto; display: block; }
   padding-inline: clamp(20px, 5vw, 48px);
 }
 
-section { padding-block: clamp(64px, 11vw, 132px); }
+section { padding-block: clamp(72px, 10vw, 116px); }
 
 .eyebrow {
   font-family: var(--sans);
@@ -119,12 +119,18 @@ section { padding-block: clamp(64px, 11vw, 132px); }
 .cta-fila .btn { flex: 1 1 200px; }   /* lado a lado, misma medida (se reparten igual) */
 .cta-micro { margin-top: 1rem; font-size: 0.95rem; color: var(--tenue); }
 
-/* ── Logo chico ───────────────────────────────────────────────────────── */
+/* ── Logo chico (robot + wordmark) ────────────────────────────────────── */
 .logo {
-  position: absolute; top: clamp(18px, 3vw, 30px); left: clamp(20px, 5vw, 48px);
-  font-family: var(--serif); font-weight: 600; font-size: 1.5rem;
+  position: absolute; top: clamp(16px, 3vw, 28px); left: clamp(20px, 5vw, 48px);
+  display: inline-flex; align-items: center; gap: 0.5rem;
   color: var(--texto); text-decoration: none; z-index: 3;
 }
+.logo__mark { width: 30px; flex: none; line-height: 0; }
+.logo__word {
+  font-family: var(--serif); font-weight: 600; font-size: 1.5rem;
+  letter-spacing: -0.01em; transition: color 0.15s ease;
+}
+.logo:hover .logo__word { color: var(--teal); }
 
 /* ── HERO ─────────────────────────────────────────────────────────────── */
 .hero {
@@ -134,14 +140,14 @@ section { padding-block: clamp(64px, 11vw, 132px); }
   grid-template-columns: 44% 56%;
   align-items: center;
   gap: clamp(24px, 4vw, 56px);
-  padding-block: clamp(96px, 14vh, 160px) clamp(48px, 8vh, 96px);
-  padding-right: clamp(20px, 5vw, 48px);   /* gutter derecho para el texto */
+  padding-block: clamp(104px, 15vh, 168px) clamp(56px, 9vh, 104px);
+  padding-inline: clamp(20px, 5vw, 48px);   /* gutters simétricos: el robot deja de cortarse */
 }
 .hero__robot {
   position: relative;
   justify-self: start;
-  margin-left: clamp(-120px, -8vw, -40px);   /* "cortado" por el borde izquierdo */
-  width: min(46vw, 460px);
+  margin-left: clamp(8px, 2vw, 40px);   /* aire: separado del borde, compuesto (ya no "cortado") */
+  width: min(40vw, 420px);
   will-change: transform;
   transform: translate3d(0, var(--parallax, 0px), 0);  /* parallax leve (lo setea Base.astro) */
 }
@@ -167,6 +173,15 @@ section { padding-block: clamp(64px, 11vw, 132px); }
   color: var(--tenue);
 }
 
+/* Encabezado de bloque centrado (capturas y demás) */
+.bloque-head {
+  text-align: center;
+  max-width: 38ch;
+  margin: 0 auto clamp(32px, 5vw, 52px);
+}
+.bloque-head .eyebrow { margin-bottom: 0.6rem; }
+.bloque-head h2 { font-size: clamp(1.8rem, 4.4vw, 2.6rem); margin: 0; }
+
 .grid-capturas {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -179,7 +194,14 @@ section { padding-block: clamp(64px, 11vw, 132px); }
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: clamp(20px, 3vw, 36px);
 }
-.bullet { text-align: left; }
+.bullet {
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--panel-borde);
+  border-radius: var(--radio);
+  padding: clamp(20px, 2.4vw, 28px);
+  box-shadow: var(--sombra-suave);
+}
 .bullet__icono {
   width: 52px; height: 52px; border-radius: 13px;
   display: grid; place-items: center;

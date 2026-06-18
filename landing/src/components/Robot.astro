@@ -3,9 +3,13 @@
 // silueta cuerpo+cuello+cabeza (crema #ECE7DA con borde #D8D0BF), visor oscuro,
 // dos ojos ovalados claros, luz de pecho ámbar y antena con puntito ámbar.
 // Coordenadas tomadas de robot.gd (_draw / _silueta), centro cx=60, cy=60.
+//
+// variant: "hero" (flota + parpadea, en el hero) | "mark" (estático y chico, para el logo).
+interface Props { variant?: "hero" | "mark"; }
+const { variant = "hero" } = Astro.props;
 ---
 
-<svg class="robot-svg" viewBox="0 0 120 124" role="img" aria-label="El robot de Paso"
+<svg class:list={["robot-svg", variant === "mark" && "robot-svg--mark"]} viewBox="0 0 120 124" role="img" aria-label="El robot de Paso"
      xmlns="http://www.w3.org/2000/svg">
   <!-- sombra de contacto (suave) -->
   <ellipse cx="60" cy="113" rx="26" ry="6" fill="#232220" opacity="0.10"/>
@@ -74,6 +78,14 @@
     0%, 100% { transform: rotate(-3.5deg); }
     50%      { transform: rotate(3.5deg); }
   }
+
+  /* Variante "mark" (logo): estática y con sombra mínima, para no distraer en la esquina. */
+  .robot-svg--mark {
+    animation: none;
+    filter: drop-shadow(0 3px 6px rgba(35, 34, 32, 0.14));
+  }
+  .robot-svg--mark .robot-ojos,
+  .robot-svg--mark .robot-antena { animation: none; }
 
   /* Sin movimiento si el usuario lo pidió (refuerza la regla global). */
   @media (prefers-reduced-motion: reduce) {
