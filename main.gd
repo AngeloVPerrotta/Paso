@@ -179,6 +179,21 @@ var _tuto_btn_sig: Button
 var _tuto_marca_visto := true           # true: al terminar marca el nivel como "ya visto"
 
 
+# --- Robot-tutor: el robot se asoma a una esquina y comenta en momentos clave ---
+# Presentación pura. Textos cortos/rioplatenses (Angelo: cambialos si querés). Flags
+# de "primera vez" en Puntajes (vio_robot_*): "Reiniciar progreso" los borra solos.
+const TUTOR_PRIMER_PROG := "¡Buen comienzo! Apilá las órdenes y yo las hago una por una, de arriba a abajo."
+const TUTOR_PRIMER_PASE := "¡Lo resolviste! Cada nivel suma una idea nueva. Vamos al que sigue."
+var tutor_capa: Control                  # overlay propio (no se encima con tutorial_capa/spotlight)
+var _tutorbot: Robot                     # robot que se asoma (reusa robot.gd)
+var _tutor_burbuja: PanelContainer       # burbuja del comentario (mismo mecanismo que el tutorial)
+var _tutor_activo := false               # hay un comentario en pantalla
+var _tutor_cerrando := false             # cierre en curso (evita doble disparo)
+var _tutor_tween: Tween
+var _tutor_origen := Vector2.ZERO        # posición del robot real (para volver)
+var _tutor_pase_pendiente := false       # mostrar "primer nivel" recién al cerrar el banner
+
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	fuente_mono = SystemFont.new()
@@ -219,6 +234,7 @@ func _cargar_indice(idx: int) -> void:
 	if orden.is_empty():
 		return
 	_cerrar_tutorial()
+	_tutor_cerrar_inmediato()
 	es_libre = false
 	nivel_idx = clampi(idx, 0, orden.size() - 1)
 	_cargar_nivel(orden[nivel_idx])
@@ -433,6 +449,14 @@ func _construir_ui() -> void:
 	tutorial_capa.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tutorial_capa.visible = false
 	add_child(tutorial_capa)
+
+	# Capa del robot-tutor (comentarios en momentos clave). Propia, para no encimarse con
+	# el tutorial/spotlight. IGNORE: el juego de atrás sigue usable; la burbuja captura su tap.
+	tutor_capa = Control.new()
+	tutor_capa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	tutor_capa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tutor_capa.visible = false
+	add_child(tutor_capa)
 
 	_construir_csharp()
 	_construir_como_funciona()
@@ -686,6 +710,7 @@ func _mostrar_inicio() -> void:
 			_btn_continuar.visible = false
 	if _inicio_robot:
 		_inicio_robot.set_mood("feliz")
+	_tutor_cerrar_inmediato()
 	inicio_capa.visible = true
 	inicio_capa.move_to_front()
 	# La 1ª vez de todas, mostrale el modelo antes de tocar nada.
@@ -1042,6 +1067,7 @@ func _demo_fila(cual: String) -> Control:
 
 func _abrir_como_funciona() -> void:
 	_cerrar_tutorial()
+	_tutor_cerrar_inmediato()
 	_demo_paso_i = 0
 	_demo_mostrar(0)
 	como_capa.visible = true
@@ -1156,6 +1182,7 @@ func agregar_op(op: String) -> void:
 	if sfx:
 		sfx.colocar()
 	_tutorial_evento("op:" + op)
+	_quizas_comentario_primer_programa()
 
 
 func mover_linea(i: int, delta: int) -> void:
@@ -1404,6 +1431,8 @@ func _on_validar_pressed() -> void:
 			else:
 				sfx.win()
 		_celebrar(r.score.instrucciones, r.score.pasos, es_par, es_record)
+		if not Puntajes.flag("vio_robot_pase"):
+			_tutor_pase_pendiente = true
 	else:
 		validacion_label.text = "✗  %s" % _mensaje_falla(r)
 		validacion_label.add_theme_color_override("font_color", COL_ERROR)
@@ -1768,6 +1797,9 @@ func _descartar_banner(banner: Control) -> void:
 	var t := create_tween()
 	t.tween_property(banner, "modulate:a", 0.0, 0.25)
 	t.tween_callback(func(): if is_instance_valid(banner): banner.queue_free())
+	# Robot-tutor: tras cerrar la celebración del PRIMER nivel pasado, el robot se asoma.
+	if _tutor_pase_pendiente:
+		t.tween_callback(_quizas_comentario_primer_pase)
 
 
 # ---------------------------------------------------------------------------
@@ -1865,6 +1897,7 @@ func _abrir_ayuda() -> void:
 	if not _puede_tutorial():
 		return
 	_cerrar_tutorial()
+	_tutor_cerrar_inmediato()
 	_tuto_pasos = _pasos_legenda()
 	_tuto_i = 0
 	_tuto_marca_visto = false
@@ -2102,6 +2135,180 @@ func _cerrar_tutorial() -> void:
 	_tuto_txt = null
 	_tuto_btn_sig = null
 	_tuto_pasos = []
+
+
+# ---------------------------------------------------------------------------
+# Robot-tutor: el robot se desliza a una esquina libre, se asoma y comenta UNA frase.
+# Se queda hasta que el jugador la cierra (NO auto-cierra por timer). Reusa robot.gd y
+# el mecanismo de burbuja (_panel + label + botón) del tutorial/onboarding. Nunca habla
+# si hay otra cosa hablando (tutorial/spotlight/inicio/cómo). En headless no corre.
+# ---------------------------------------------------------------------------
+func _tutor_libre() -> bool:
+	if not _puede_tutorial():
+		return false                              # headless / tests: nunca corre
+	if _tutor_activo:
+		return false                              # ya hay un comentario (nunca dos a la vez)
+	if tutorial_capa and tutorial_capa.visible:
+		return false                              # tutorial / onboarding hablando
+	if inicio_capa and inicio_capa.visible:
+		return false
+	if como_capa and como_capa.visible:
+		return false
+	if escenario_col == null or escenario_col.get_global_rect().size == Vector2.ZERO:
+		return false                              # sin layout todavía (boot)
+	return true
+
+
+# Muestra un comentario. Devuelve true si efectivamente se mostró (para marcar el flag).
+func _robot_comenta(texto: String, animo: String) -> bool:
+	if not _tutor_libre() or robot == null:
+		return false
+	_tutor_activo = true
+	_tutor_cerrando = false
+	tutor_capa.visible = true
+	tutor_capa.move_to_front()
+
+	var esc := escenario_col.get_global_rect()
+	var tam := 120.0
+
+	# Ocultamos el robot real (modulate.a, NO visible: así conserva su lugar y nada salta)
+	# y mostramos uno igual en la capa: se lee como "el mismo" robot que se va a la esquina.
+	_tutor_origen = robot.global_position
+	robot.modulate.a = 0.0
+	_tutorbot = Robot.new()
+	tutor_capa.add_child(_tutorbot)
+	_tutorbot.size = Vector2(tam, tam)
+	_tutorbot.position = _tutor_origen
+	_tutorbot.set_mood(animo)
+
+	# Burbuja: mismo mecanismo que el tutorial/onboarding (_panel + label + botón).
+	_tutor_burbuja = _panel(COL_PANEL)
+	_tutor_burbuja.custom_minimum_size = Vector2(240, 0)
+	_tutor_burbuja.mouse_filter = Control.MOUSE_FILTER_STOP   # tap en la burbuja = cerrar
+	var bv := VBoxContainer.new()
+	bv.add_theme_constant_override("separation", 10)
+	bv.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tutor_burbuja.add_child(bv)
+	var lbl := Label.new()
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.add_theme_font_override("font", fuente_sans)
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_color_override("font_color", COL_TEXTO)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(216, 0)
+	lbl.text = texto
+	bv.add_child(lbl)
+	var fila := HBoxContainer.new()
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fila.add_child(sp)
+	var ok := _boton_accion("dale ✓", true)
+	ok.pressed.connect(_cerrar_comentario)
+	fila.add_child(ok)
+	bv.add_child(fila)
+	_tutor_burbuja.modulate.a = 0.0
+	tutor_capa.add_child(_tutor_burbuja)
+	_tutor_burbuja.gui_input.connect(func(e):
+		if e is InputEventMouseButton and e.pressed:
+			_cerrar_comentario())
+
+	# Destino: esquina inferior-derecha del área de juego (franja derecha libre, la misma
+	# que usa la celebración), por encima de los controles. Nunca pisa el editor (izquierda).
+	var destino := Vector2(esc.end.x - tam - 6.0, esc.end.y - tam - 6.0)
+	if _tutor_tween and _tutor_tween.is_valid():
+		_tutor_tween.kill()
+	_tutor_tween = create_tween()
+	_tutor_tween.tween_property(_tutorbot, "position", destino, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if sfx:
+		sfx.click()
+	_posicionar_burbuja(destino, tam)            # async, fire-and-forget (no bloquea el retorno)
+	return true
+
+
+# Coloca la burbuja arriba del robot (franja derecha) y la hace aparecer. Espera 2 frames
+# a que el layout (label con autowrap) se asiente, igual que el globo del tutorial.
+func _posicionar_burbuja(destino: Vector2, tam: float) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not _tutor_activo or not is_instance_valid(_tutor_burbuja):
+		return
+	var esc := escenario_col.get_global_rect()
+	var bs: Vector2 = _tutor_burbuja.size
+	var bx := clampf(destino.x + tam - bs.x, esc.position.x + 6.0, size.x - bs.x - 8.0)
+	var by := clampf(destino.y - bs.y - 8.0, 8.0, size.y - bs.y - 8.0)
+	_tutor_burbuja.position = Vector2(bx, by)
+	var entra := create_tween()
+	entra.tween_property(_tutor_burbuja, "modulate:a", 1.0, 0.25)
+
+
+# Cierre con animación (lo dispara el jugador: botón o tap en la burbuja).
+func _cerrar_comentario() -> void:
+	if not _tutor_activo or _tutor_cerrando:
+		return
+	_tutor_cerrando = true
+	if sfx:
+		sfx.click()
+	if is_instance_valid(_tutor_burbuja):
+		var f := create_tween()
+		f.tween_property(_tutor_burbuja, "modulate:a", 0.0, 0.15)
+		f.tween_callback(func(): if is_instance_valid(_tutor_burbuja): _tutor_burbuja.queue_free())
+	if _tutor_tween and _tutor_tween.is_valid():
+		_tutor_tween.kill()
+	_tutor_tween = create_tween()
+	if is_instance_valid(_tutorbot):
+		_tutor_tween.tween_property(_tutorbot, "position", _tutor_origen, 0.42).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	_tutor_tween.tween_callback(_finalizar_comentario)
+
+
+func _finalizar_comentario() -> void:
+	if is_instance_valid(_tutorbot):
+		_tutorbot.queue_free()
+	_tutorbot = null
+	_tutor_burbuja = null
+	if tutor_capa:
+		tutor_capa.visible = false
+	if robot:
+		robot.modulate.a = 1.0
+	_tutor_activo = false
+	_tutor_cerrando = false
+
+
+# Cierre inmediato (sin animación) cuando se navega de nivel o se abre otra pantalla.
+func _tutor_cerrar_inmediato() -> void:
+	if _tutor_tween and _tutor_tween.is_valid():
+		_tutor_tween.kill()
+	if is_instance_valid(_tutor_burbuja):
+		_tutor_burbuja.queue_free()
+	_tutor_burbuja = null
+	if is_instance_valid(_tutorbot):
+		_tutorbot.queue_free()
+	_tutorbot = null
+	if tutor_capa:
+		tutor_capa.visible = false
+	if robot:
+		robot.modulate.a = 1.0
+	_tutor_activo = false
+	_tutor_cerrando = false
+	_tutor_pase_pendiente = false
+
+
+# Momento clave 1: primera vez que el jugador arma programa (pone una instrucción). Si la
+# pantalla no está libre (p. ej. tutorial del nivel 1), no marca el flag y reintenta luego.
+func _quizas_comentario_primer_programa() -> void:
+	if not _puede_tutorial() or Puntajes.flag("vio_robot_prog"):
+		return
+	if _robot_comenta(TUTOR_PRIMER_PROG, "feliz"):
+		Puntajes.set_flag("vio_robot_prog", true)
+
+
+# Momento clave 2: primera vez que pasa un nivel. Se dispara al CERRAR el banner de
+# celebración (así nunca hablan los dos a la vez).
+func _quizas_comentario_primer_pase() -> void:
+	_tutor_pase_pendiente = false
+	if not _puede_tutorial() or Puntajes.flag("vio_robot_pase"):
+		return
+	if _robot_comenta(TUTOR_PRIMER_PASE, "fiesta"):
+		Puntajes.set_flag("vio_robot_pase", true)
 
 
 # ---------------------------------------------------------------------------
