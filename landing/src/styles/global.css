@@ -20,6 +20,13 @@
 
   --serif: "Fraunces", Georgia, "Times New Roman", serif;
   --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Mono", "JetBrains Mono", "SF Mono", "Consolas", "DejaVu Sans Mono", ui-monospace, monospace;
+
+  /* Terminal del sandbox de Git: texto claro sobre fondo oscuro, igual que el juego */
+  --term-bg: var(--texto);      /* #232220 */
+  --term-cmd: #82B7B3;          /* PRIMARIO_CLARO de tema.gd: eco del comando */
+  --term-out: var(--fondo);     /* #F5F2EA: salida en crema */
+  --term-amber: var(--ambar);   /* línea de intro / info */
 
   --ancho: 1120px;
   --radio: 14px;
@@ -224,16 +231,73 @@ section { padding-block: clamp(72px, 10vw, 116px); }
   font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em;
   padding: 0.35em 0.8em; border-radius: 999px; margin-bottom: 1rem;
 }
-.git__capturas {
+/* Recreación HTML de la consola del sandbox (reemplaza las screenshots de Git) */
+.git__demo {
   margin-top: clamp(32px, 5vw, 56px);
-  display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  grid-template-areas: "consola nube" "consola push";
-  gap: clamp(18px, 3vw, 28px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(16px, 2.4vw, 24px);
 }
-.git__capturas .g-consola { grid-area: consola; }
-.git__capturas .g-nube { grid-area: nube; }
-.git__capturas .g-push { grid-area: push; }
+.git__paneles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(16px, 2.4vw, 24px);
+  align-items: stretch;            /* paneles a la misma altura, como en el juego */
+}
+.gpanel {
+  background: var(--panel);
+  border: 1px solid var(--panel-borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra-suave);
+  padding: clamp(18px, 2.2vw, 26px);
+}
+.gpanel__cap {
+  margin: 0 0 0.7rem;
+  font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--tenue);
+}
+.gpanel__title {
+  margin: 0 0 0.9rem;
+  font-family: var(--mono); font-weight: 600; font-size: 1.05rem;
+  color: var(--texto);
+  display: flex; align-items: center; gap: 0.5em;
+}
+.gpanel__ico { font-size: 1.1em; line-height: 1; }
+.gfiles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+.gfiles li { display: flex; align-items: center; gap: 0.6rem; }
+.gfiles code { font-family: var(--mono); font-size: 0.95rem; color: var(--texto); flex: 1 1 auto; }
+.gdot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--tenue); }
+.gdot--ok { background: var(--verde); }
+.gdot--mod { background: var(--ambar); }
+.gdot--stage { background: var(--teal); }
+.gstate { font-size: 0.82rem; color: var(--tenue); flex: none; }
+.gstate--ok { color: var(--verde); }
+.gpanel__pie {
+  margin-top: 0.9rem; padding-top: 0.85rem;
+  border-top: 1px solid var(--panel-borde);
+}
+.gmeta { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--tenue); }
+.gmeta:last-child { margin-bottom: 0; }
+.gmeta--sync { color: var(--verde); }
+
+.gterm {
+  background: var(--term-bg);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra-tarjeta);
+  padding: clamp(16px, 2vw, 22px) clamp(16px, 2.2vw, 24px);
+}
+.gterm__pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(12px, 1.45vw, 13.5px);
+  line-height: 1.6;
+  color: var(--term-out);
+  white-space: pre-wrap;          /* envuelve en pantallas angostas, sin scroll horizontal */
+  tab-size: 4;
+}
+.gterm__pre .t-amber { color: var(--term-amber); }
+.gterm__pre .t-cmd { color: var(--term-cmd); }
+.gterm__pre .t-out { color: var(--term-out); }
 
 /* ── Centrado (qué es / cta final) ────────────────────────────────────── */
 .centro { text-align: center; }
@@ -261,6 +325,35 @@ section { padding-block: clamp(72px, 10vw, 116px); }
 }
 [data-reveal].is-visible { opacity: 1; transform: none; }
 
+/* ── Pet del scroll (mascota fija de la esquina) ──────────────────────── */
+/* Capas separadas para no pisar transformaciones entre sí:
+   .pet = posición + aparición (escala/translate) · .pet__bob = rebote · .pet__tilt = inclinación. */
+.pet {
+  position: fixed;
+  right: clamp(16px, 2vw, 30px);
+  bottom: clamp(16px, 2vw, 30px);
+  width: clamp(60px, 6vw, 78px);
+  z-index: 20;
+  pointer-events: none;                 /* nunca bloquea clics ni tapa funcionalmente */
+  opacity: 0;
+  transform: translateY(18px) scale(0.55);
+  transform-origin: bottom right;
+  transition: opacity 0.45s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pet--on { opacity: 1; transform: translateY(0) scale(1); }   /* aparece "achicándose" hacia la esquina */
+.pet__bob, .pet__tilt { transform-origin: bottom center; }
+.pet__tilt { transition: transform 0.5s ease; }
+.pet--look-left .pet__tilt { transform: rotate(-7deg); }
+.pet--look-right .pet__tilt { transform: rotate(7deg); }
+.pet--bounce .pet__bob { animation: pet-bote 0.62s ease; }   /* micro-bote al cambiar de sección */
+@keyframes pet-bote {
+  0% { transform: translateY(0); }
+  28% { transform: translateY(-10px); }
+  55% { transform: translateY(0); }
+  78% { transform: translateY(-3px); }
+  100% { transform: translateY(0); }
+}
+
 /* ── Responsive: mobile-first reorder ─────────────────────────────────── */
 @media (max-width: 860px) {
   body { font-size: 17px; }
@@ -284,11 +377,9 @@ section { padding-block: clamp(72px, 10vw, 116px); }
   .cta-fila .btn { flex: 0 0 auto; width: 100%; }
   .bullets { grid-template-columns: 1fr; }
   .grid-capturas { grid-template-columns: 1fr; }
-  .git__capturas {
-    grid-template-columns: 1fr;
-    grid-template-areas: "consola" "nube" "push";
-  }
+  .git__paneles { grid-template-columns: 1fr; }
   .footer .container { flex-direction: column; text-align: center; }
+  .pet { display: none; }   /* oculto en angosto: los CTA son full-width y no debe taparlos */
 }
 
 /* ── Respetar prefers-reduced-motion ──────────────────────────────────── */
@@ -296,5 +387,7 @@ section { padding-block: clamp(72px, 10vw, 116px); }
   html { scroll-behavior: auto; }
   [data-reveal] { opacity: 1; transform: none; transition: none; }
   .btn:hover { transform: none; }
+  /* El pet queda quieto en la esquina: aparece/desaparece sin transición ni rebote. */
+  .pet, .pet__tilt { transition: none; }
   * { animation: none !important; }
 }

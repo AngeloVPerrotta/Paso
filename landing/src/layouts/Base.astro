@@ -82,6 +82,52 @@ const ogImage = new URL("/shots/shot_inicio.png", Astro.site ?? "https://paso.an
           );
         }
       }
+
+      // Pet del scroll: el robot se vuelve mascota fija de la esquina al dejar el hero.
+      // Se esconde sobre el footer (no tapa los links). Reacciones sutiles, no constantes.
+      const pet = document.querySelector<HTMLElement>(".pet");
+      if (pet) {
+        const hero = document.querySelector(".hero");
+        const footer = document.querySelector(".footer");
+        let heroVis = true;
+        let footVis = false;
+        const syncPet = () => pet.classList.toggle("pet--on", !heroVis && !footVis);
+        const edges = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.target === hero) heroVis = e.isIntersecting;
+              if (e.target === footer) footVis = e.isIntersecting;
+            });
+            syncPet();
+          },
+          { threshold: 0 }
+        );
+        if (hero) edges.observe(hero);
+        if (footer) edges.observe(footer);
+
+        // Vivo pero sutil: mira hacia la sección activa (leve inclinación alternada) y da un
+        // micro-bote al cambiar. Solo si el usuario no pidió menos movimiento.
+        if (!reduce) {
+          let activa: Element | null = null;
+          let flip = false;
+          const act = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((e) => {
+                if (e.isIntersecting && e.target !== activa) {
+                  activa = e.target;
+                  flip = !flip;
+                  pet.classList.remove("pet--look-left", "pet--look-right", "pet--bounce");
+                  pet.classList.add(flip ? "pet--look-left" : "pet--look-right");
+                  void pet.offsetWidth; // reinicia la animación del bote
+                  pet.classList.add("pet--bounce");
+                }
+              });
+            },
+            { threshold: 0, rootMargin: "-45% 0px -45% 0px" } // sección que cruza el centro del viewport
+          );
+          document.querySelectorAll("section").forEach((s) => act.observe(s));
+        }
+      }
     </script>
   </body>
 </html>

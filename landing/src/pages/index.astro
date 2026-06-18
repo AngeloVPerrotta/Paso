@@ -101,22 +101,50 @@ const bullets = [
           moverse de un lado al otro.
         </p>
       </div>
-      <div class="git__capturas">
-        <figure class="shot g-consola">
-          <img src="/shots/shot_git_consola.png" width="1000" height="900" loading="lazy" decoding="async"
-               alt="El sandbox de Git en acción: consola con comandos reales y los archivos cambiando de estado, ejercicio 6 de 10." />
-          <figcaption>La consola del sandbox: comandos reales, archivos que cambian de estado.</figcaption>
-        </figure>
-        <figure class="shot g-nube">
-          <img src="/shots/shot_git_nube.png" width="1000" height="900" loading="lazy" decoding="async"
-               alt="Explicación visual de local contra la nube (tu PC y el servidor remoto)." />
-          <figcaption>Local ↔ nube, sin vueltas.</figcaption>
-        </figure>
-        <figure class="shot g-push">
-          <img src="/shots/shot_git_push.png" width="1000" height="900" loading="lazy" decoding="async"
-               alt="El flujo de git push: los commits viajando de tu PC al servidor." />
-          <figcaption>El flujo: add → commit → push → pull.</figcaption>
-        </figure>
+      <!-- Recreación (HTML/CSS, no interactiva) de la consola del sandbox de Git.
+           Réplica fiel del juego como elemento de la página; texto fijo/decorativo. -->
+      <div class="git__demo" role="img"
+           aria-label="Recreación de la consola del sandbox de Git de Paso: el panel de tu PC y el de la nube, sobre una terminal con el flujo git init, add, commit y push.">
+        <div class="git__paneles">
+          <article class="gpanel">
+            <p class="gpanel__cap">TU PC · LOCAL</p>
+            <p class="gpanel__title"><span class="gpanel__ico" aria-hidden="true">📁</span> tu-proyecto/</p>
+            <ul class="gfiles">
+              <li><span class="gdot gdot--ok" aria-hidden="true"></span><code>README.md</code><span class="gstate gstate--ok">guardado</span></li>
+              <li><span class="gdot gdot--ok" aria-hidden="true"></span><code>hola.c</code><span class="gstate gstate--ok">guardado</span></li>
+            </ul>
+            <div class="gpanel__pie">
+              <p class="gmeta">preparado (staging):&nbsp; —</p>
+              <p class="gmeta">historial local:&nbsp; 1 commit · último: «primer commit»</p>
+            </div>
+          </article>
+          <article class="gpanel">
+            <p class="gpanel__cap">NUBE · origin (GitHub)</p>
+            <p class="gpanel__title"><span class="gpanel__ico" aria-hidden="true">☁</span> servidor remoto</p>
+            <p class="gmeta">historial remoto:&nbsp; 1 commit · último: «primer commit»</p>
+            <div class="gpanel__pie">
+              <p class="gmeta gmeta--sync">✓ sincronizado con tu PC</p>
+            </div>
+          </article>
+        </div>
+        <div class="gterm">
+<pre class="gterm__pre"><span class="t-amber">Sandbox de git. Escribí comandos reales abajo. Empezá por: git init</span>
+<span class="t-cmd">$ git init</span>
+<span class="t-out">Inicializaste un repositorio git vacío en tu-proyecto/.</span>
+<span class="t-cmd">$ git status</span>
+<span class="t-out">En la rama main</span>
+
+<span class="t-out">Archivos sin seguir:</span>
+<span class="t-out">    README.md</span>
+<span class="t-out">    hola.c</span>
+<span class="t-cmd">$ git add .</span>
+<span class="t-out">Preparaste: README.md, hola.c</span>
+<span class="t-cmd">$ git commit -m "primer commit"</span>
+<span class="t-out">[main #1] primer commit</span>
+<span class="t-out"> 2 archivo(s) commiteado(s).</span>
+<span class="t-cmd">$ git push</span>
+<span class="t-out">Subiste 1 commit(s) a la nube (origin/main).</span></pre>
+        </div>
       </div>
     </div>
   </section>
@@ -142,4 +170,13 @@ const bullets = [
       </nav>
     </div>
   </footer>
+
+  <!-- Pet del scroll: al dejar el hero, el robot aparece achicado en la esquina y te
+       acompaña. Capas separadas: .pet (posición/aparición) · .pet__bob (rebote) ·
+       .pet__tilt (mira hacia la sección). Decorativo (aria-hidden, no captura clics). -->
+  <div class="pet" aria-hidden="true">
+    <div class="pet__bob">
+      <div class="pet__tilt"><Robot variant="pet" /></div>
+    </div>
+  </div>
 </Base>
