@@ -693,7 +693,19 @@ func _construir_inicio() -> void:
 	var l_reset := _boton_link("Reiniciar progreso")
 	l_reset.pressed.connect(_reiniciar_progreso)
 	pie.add_child(l_reset)
+	pie.add_child(_etiqueta("·", 14, COL_TENUE))
+	var l_sonido := _boton_link(_texto_sonido())
+	l_sonido.pressed.connect(func():
+		if sfx:
+			sfx.set_silenciado(not sfx.silenciado)
+		l_sonido.text = _texto_sonido())
+	pie.add_child(l_sonido)
 	v.add_child(pie)
+
+
+# Etiqueta del toggle de sonido (pie de la pantalla de inicio). Mute = todo el audio.
+func _texto_sonido() -> String:
+	return "🔇 Sonido: no" if (sfx and sfx.silenciado) else "🔊 Sonido: sí"
 
 
 func _mostrar_inicio() -> void:
@@ -2215,12 +2227,17 @@ func _robot_comenta(texto: String, animo: String) -> bool:
 	# Destino: esquina inferior-derecha del área de juego (franja derecha libre, la misma
 	# que usa la celebración), por encima de los controles. Nunca pisa el editor (izquierda).
 	var destino := Vector2(esc.end.x - tam - 6.0, esc.end.y - tam - 6.0)
+	# Vida al hablar: micro-bote al asomarse + antena oscilando + balbuceo. Matamos el tween
+	# anterior antes de relanzar para que spamear abrir/cerrar no encime animaciones.
+	_tutorbot.pivot_offset = Vector2(tam, tam) * 0.5
+	_tutorbot.set_hablando(true)
 	if _tutor_tween and _tutor_tween.is_valid():
 		_tutor_tween.kill()
 	_tutor_tween = create_tween()
 	_tutor_tween.tween_property(_tutorbot, "position", destino, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_tutor_tween.parallel().tween_property(_tutorbot, "scale", Vector2.ONE, 0.42).from(Vector2(0.86, 0.86)).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if sfx:
-		sfx.click()
+		sfx.tutor()                              # balbuceo corto (respeta el mute global)
 	_posicionar_burbuja(destino, tam)            # async, fire-and-forget (no bloquea el retorno)
 	return true
 
@@ -2246,6 +2263,9 @@ func _cerrar_comentario() -> void:
 	if not _tutor_activo or _tutor_cerrando:
 		return
 	_tutor_cerrando = true
+	if is_instance_valid(_tutorbot):
+		_tutorbot.set_hablando(false)            # apaga la animación de "hablar" limpio
+		_tutorbot.scale = Vector2.ONE            # por si el bote no terminó (cierre rápido)
 	if sfx:
 		sfx.click()
 	if is_instance_valid(_tutor_burbuja):

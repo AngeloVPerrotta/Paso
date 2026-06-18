@@ -21,7 +21,8 @@ const ARCHIVOS := {
 	"colocar":  "res://assets/sfx/colocar",
 }
 
-var habilitado := true
+var habilitado := true       # false en headless (sin device de audio real)
+var silenciado := false      # mute del jugador (persistido); el balbuceo y TODO el audio lo respeta
 var _players := {}          # nombre -> AudioStreamPlayer
 
 
@@ -31,6 +32,7 @@ func _ready() -> void:
 	if DisplayServer.get_name() == "headless":
 		habilitado = false
 		return
+	silenciado = Puntajes.flag("audio_off", false)   # mute del jugador (persistido en el .cfg)
 	_preparar("click",   _tono([880.0], 0.045, 0.28, "seno"))
 	_preparar("tick",    _tono([1320.0], 0.035, 0.16, "seno"))
 	_preparar("colocar", _secuencia([{"f": 660.0, "d": 0.05, "v": 0.30}, {"f": 990.0, "d": 0.06, "v": 0.26}]))
@@ -43,6 +45,9 @@ func _ready() -> void:
 		{"f": 783.99, "d": 0.09, "v": 0.30},
 		{"f": 1046.5, "d": 0.22, "v": 0.34},
 	]))
+	# Balbuceo del robot-tutor: bliplets cortos, agudos y suaves (estilo "personaje que
+	# habla"). ~0.4s: acompaña la aparición de la burbuja, no suena todo el rato.
+	_preparar("tutor",   _balbuceo())
 
 
 # --- API pública: los hooks que llama la UI ---
@@ -52,10 +57,18 @@ func colocar() -> void:   _play("colocar")
 func win() -> void:       _play("win")
 func fail() -> void:      _play("fail")
 func record() -> void:    _play("record")
+func tutor() -> void:     _play("tutor")
+
+
+# Mute global del jugador, persistido en el .cfg de Puntajes. TODO el audio (incluido el
+# balbuceo del tutor) lo respeta porque el gate está en _play.
+func set_silenciado(v: bool) -> void:
+	silenciado = v
+	Puntajes.set_flag("audio_off", v)
 
 
 func _play(nombre: String) -> void:
-	if not habilitado:
+	if not habilitado or silenciado:
 		return
 	var p: AudioStreamPlayer = _players.get(nombre)
 	if p:
@@ -101,6 +114,19 @@ func _secuencia(notas: Array) -> AudioStreamWAV:
 		var freqs: Array = nota.get("freqs", [nota.get("f", 440.0)])
 		segs.append({"freqs": freqs, "d": nota.get("d", 0.1), "v": nota.get("v", 0.3)})
 	return _construir(segs)
+
+
+# Balbuceo "personaje que habla": 5 bliplets agudos y suaves con micro-silencios entre
+# medio (se leen discretos, no un warble continuo). Coherente con el robot: claro y
+# juguetón, nunca chillón.
+func _balbuceo() -> AudioStreamWAV:
+	var notas := []
+	var pitches := [1180.0, 1320.0, 1245.0, 1410.0, 1300.0]
+	for i in pitches.size():
+		notas.append({"f": pitches[i], "d": 0.058, "v": 0.17})
+		if i < pitches.size() - 1:
+			notas.append({"f": 0.0, "d": 0.022, "v": 0.0})   # micro silencio entre blips
+	return _secuencia(notas)
 
 
 func _construir(segs: Array) -> AudioStreamWAV:

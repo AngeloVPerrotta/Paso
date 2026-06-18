@@ -22,12 +22,14 @@ const COL_PANEL := Tema.PANEL
 const COL_VISOR := Color("232220")      # visor oscuro = texto de la paleta
 
 var mood := "idle"
+var hablando := false         # robot-tutor hablando: la antena oscila (y parpadea) un toque
 
 var _t := 0.0                 # tiempo para animaciones cíclicas
 var _blink := 0.0             # fase de parpadeo (0 = ojos abiertos)
 var _prox_blink := 2.0
 var _salto := 0.0             # impulso de salto (decae)
 var _antena := 0.0            # fase de pulso de antena
+var _habla := 0.0             # fase del "hablar": oscilación de antena, viva al aparecer (balbuceo)
 
 
 func _ready() -> void:
@@ -46,10 +48,19 @@ func set_mood(nuevo: String) -> void:
 	queue_redraw()
 
 
+func set_hablando(activo: bool) -> void:
+	if activo == hablando:
+		return
+	hablando = activo
+	if activo:
+		_habla = 0.0              # reinicia la fase para sincronizar la antena con el balbuceo
+	queue_redraw()
+
+
 func _process(delta: float) -> void:
 	_t += delta
-	# Parpadeo ocasional en idle.
-	if mood == "idle" or mood == "pensando":
+	# Parpadeo ocasional en idle / pensando / al hablar.
+	if mood == "idle" or mood == "pensando" or hablando:
 		_prox_blink -= delta
 		if _prox_blink <= 0.0:
 			_blink = 1.0
@@ -58,8 +69,10 @@ func _process(delta: float) -> void:
 		_blink = maxf(0.0, _blink - delta * 8.0)
 	if _salto > 0.0:
 		_salto = maxf(0.0, _salto - delta * 2.2)
-	if mood == "pensando" or mood == "fiesta":
+	if mood == "pensando" or mood == "fiesta" or hablando:
 		_antena += delta
+	if hablando:
+		_habla += delta
 	queue_redraw()
 
 
@@ -118,11 +131,17 @@ func _draw() -> void:
 	# --- Antena (desde el tope de la cabeza, dibujada al final) ---
 	var antena_base := Vector2(cx, cy - 34)
 	var late := 1.0 + (sin(_antena * 9.0) * 0.18 if (mood == "pensando" or mood == "fiesta") else 0.0)
-	draw_line(antena_base, antena_base + Vector2(0, -13), COL_OJO, 2.0)
+	# Al hablar, la antena oscila de lado: viva al aparecer (acompaña el balbuceo) y luego apenas.
+	var sway := 0.0
+	if hablando:
+		var intens := 0.35 + 0.65 * exp(-3.0 * _habla)
+		sway = sin(_habla * 21.0) * 3.4 * intens
+	var tip := antena_base + Vector2(sway, -13)
+	draw_line(antena_base, tip, COL_OJO, 2.0)
 	var brillo := COL_ACENTO
 	if mood == "fiesta":
 		brillo = COL_ACENTO.lerp(Color.WHITE, 0.5 + 0.5 * sin(_antena * 12.0))
-	draw_circle(antena_base + Vector2(0, -15), 4.5 * late, brillo)
+	draw_circle(tip + Vector2(0, -2), 4.5 * late, brillo)
 
 
 # La silueta del robot (cuerpo + cuello + cabeza solapados) en un color, opcionalmente
