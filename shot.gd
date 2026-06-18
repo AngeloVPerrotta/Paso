@@ -127,12 +127,15 @@ func _cerrar_modal_top() -> void:
 
 # Pantalla "Cómo funciona la máquina" en el paso "guardá" (valor en memoria).
 func _shot_como() -> void:
-	escena._abrir_como_funciona()
-	escena._demo_timer.stop()      # control manual para una captura estable
-	escena._demo_tick()            # agarrá
-	escena._demo_tick()            # guardá (queda el valor en memoria)
+	escena._abrir_como_funciona()                 # paso 1 de 4
+	await _esperar(4)
+	escena._demo_avanzar()                         # agarrá
+	escena._demo_avanzar()                         # guardá (valor en mano + memoria)
 	await _esperar(10)
-	await _guardar("shot_como.png")
+	await _guardar("shot_como.png")                # con el botón "Siguiente ▶" de avance manual
+	escena._demo_avanzar()                         # soltá (último paso: "Siguiente" se deshabilita)
+	await _esperar(10)
+	await _guardar("shot_como_fin.png")
 	escena._cerrar_como_funciona()
 	await _esperar(2)
 

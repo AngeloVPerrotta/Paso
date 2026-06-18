@@ -158,7 +158,9 @@ var como_capa: Control
 var es_libre := false                   # modo libre: sin objetivo, solo experimentar
 var _demo_estado
 var _demo_paso_i := 0
-var _demo_timer: Timer
+var _demo_b_atras: Button
+var _demo_b_sig: Button
+var _demo_paso_label: Label
 var _demo_entrada_box: HBoxContainer
 var _demo_salida_box: HBoxContainer
 var _demo_mano_celda: Panel
@@ -974,6 +976,28 @@ func _construir_como_funciona() -> void:
 	_demo_caption.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(_demo_caption)
 
+	# Navegación a RITMO DEL JUGADOR: nada avanza por reloj; el demo pasa al tocar.
+	var nav := HBoxContainer.new()
+	nav.add_theme_constant_override("separation", 12)
+	nav.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_demo_b_atras = _boton_accion("◀ Atrás", false)
+	_demo_b_atras.custom_minimum_size = Vector2(120, 44)
+	_demo_b_atras.pressed.connect(_demo_atras)
+	nav.add_child(_demo_b_atras)
+	_demo_paso_label = Label.new()
+	_demo_paso_label.add_theme_font_override("font", fuente_sans)
+	_demo_paso_label.add_theme_font_size_override("font_size", 14)
+	_demo_paso_label.add_theme_color_override("font_color", COL_TENUE)
+	_demo_paso_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_demo_paso_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_demo_paso_label.custom_minimum_size = Vector2(110, 0)
+	nav.add_child(_demo_paso_label)
+	_demo_b_sig = _boton_accion("Siguiente ▶", true)
+	_demo_b_sig.custom_minimum_size = Vector2(150, 44)
+	_demo_b_sig.pressed.connect(_demo_avanzar)
+	nav.add_child(_demo_b_sig)
+	v.add_child(nav)
+
 	var brow := HBoxContainer.new()
 	brow.add_theme_constant_override("separation", 10)
 	brow.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -986,12 +1010,6 @@ func _construir_como_funciona() -> void:
 	libre.pressed.connect(_modo_libre)
 	brow.add_child(libre)
 	v.add_child(brow)
-
-	_demo_timer = Timer.new()
-	_demo_timer.wait_time = 1.8
-	_demo_timer.one_shot = false
-	_demo_timer.timeout.connect(_demo_tick)
-	add_child(_demo_timer)
 
 
 # Una fila del mini-escenario: etiqueta + caja de celdas. Guarda la referencia que
@@ -1025,27 +1043,35 @@ func _demo_fila(cual: String) -> Control:
 func _abrir_como_funciona() -> void:
 	_cerrar_tutorial()
 	_demo_paso_i = 0
-	_demo_tick()                 # pinta el estado inicial ya
+	_demo_mostrar(0)
 	como_capa.visible = true
 	como_capa.move_to_front()
-	if _demo_timer:
-		_demo_timer.start()
 
 
 func _cerrar_como_funciona() -> void:
 	como_capa.visible = false
-	if _demo_timer:
-		_demo_timer.stop()
 
 
-# Un paso del mini-demo (loopea): paso 0 reinicia, 1..3 ejecutan una instrucción.
-func _demo_tick() -> void:
-	if _demo_paso_i == 0:
-		_demo_estado = Interprete.Estado.new(DEMO_IN, 1)
-	else:
+# Avance a RITMO DEL JUGADOR (sin timer): el demo pasa al próximo momento al tocar.
+func _demo_avanzar() -> void:
+	if _demo_paso_i < DEMO_CAPS.size() - 1:
+		_demo_paso_i += 1
+		_demo_mostrar(_demo_paso_i)
+
+
+func _demo_atras() -> void:
+	if _demo_paso_i > 0:
+		_demo_paso_i -= 1
+		_demo_mostrar(_demo_paso_i)
+
+
+# Muestra el momento i re-derivando el estado desde cero (i ejecuciones del DEMO_PROG).
+# Re-derivar permite ir y volver sin que se rompa el estado visual.
+func _demo_mostrar(i: int) -> void:
+	_demo_estado = Interprete.Estado.new(DEMO_IN, 1)
+	for _k in range(i):
 		Interprete.ejecutar_paso(_demo_estado, DEMO_PROG)
-	_demo_redibujar(_demo_paso_i)
-	_demo_paso_i = (_demo_paso_i + 1) % DEMO_CAPS.size()
+	_demo_redibujar(i)
 
 
 func _demo_redibujar(i: int) -> void:
@@ -1054,6 +1080,16 @@ func _demo_redibujar(i: int) -> void:
 	_demo_mano_celda.get_child(0).text = _str_valor(_demo_estado.mano)
 	_demo_mem_celda.get_child(0).text = _str_valor(_demo_estado.slots[0])
 	_demo_caption.text = DEMO_CAPS[i]
+	# Estado de la navegación manual.
+	if _demo_paso_label:
+		_demo_paso_label.text = "Paso %d de %d" % [i + 1, DEMO_CAPS.size()]
+	if _demo_b_atras:
+		_demo_b_atras.disabled = i == 0
+		_demo_b_atras.modulate.a = 0.4 if i == 0 else 1.0
+	if _demo_b_sig:
+		var _ult := i >= DEMO_CAPS.size() - 1
+		_demo_b_sig.disabled = _ult
+		_demo_b_sig.modulate.a = 0.4 if _ult else 1.0
 	match i:
 		0:
 			if _demo_robot: _demo_robot.set_mood("idle")
