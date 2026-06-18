@@ -1,0 +1,679 @@
+---
+// Sección "Git" ANIMADA del sandbox de Paso (typewriter de comandos, archivos que
+// cambian de estado, commit que viaja PC→nube, "ver de nuevo", respeta reduced-motion).
+//
+// Componente autocontenido portado del HTML del Design System:
+//   · CSS namespaced (.pg- / .pg) → va `is:global` a propósito. Si lo dejáramos scopear
+//     por Astro, los <div class="pg-line"> que el JS crea en runtime NO recibirían el
+//     atributo de scope y quedarían sin estilo. El namespace evita choques con global.css.
+//   · JS vanilla en un IIFE → `is:inline` para emitirlo tal cual (sin bundling), igual
+//     que en el HTML original. Arranca solo al entrar en viewport.
+//   · La fuente mono (JetBrains Mono) se carga desde el <head> en Base.astro.
+---
+
+<section class="pg" id="pgSection" aria-label="El módulo de Git de Paso, en vivo">
+  <div class="pg__wrap">
+
+    <!-- Encabezado (copy idéntico a la landing) -->
+    <div class="pg__head">
+      <span class="pg__sello">★ El diferencial</span>
+      <h2>Y encima, aprendés Git de verdad</h2>
+      <p class="pg__lede">
+        Un módulo aparte arranca de cero: qué es un repositorio, tu compu contra la
+        nube, y una consola donde escribís comandos de verdad y ves los archivos
+        moverse de un lado al otro.
+      </p>
+    </div>
+
+    <div class="pg__demo">
+      <!-- ── Paneles: TU PC (local) ↔ NUBE (origin) ── -->
+      <div class="pg__panels" id="pgPanels">
+
+        <!-- Línea de conexión (sus extremos los calcula el JS) -->
+        <svg class="pg-link" id="pgLink" aria-hidden="true">
+          <line x1="0" y1="0" x2="0" y2="0" />
+        </svg>
+
+        <!-- TU PC · LOCAL -->
+        <article class="pg-panel" id="pgLocal">
+          <p class="pg-panel__cap">TU PC · LOCAL</p>
+          <p class="pg-panel__title"><span class="pg-panel__ico" aria-hidden="true">📁</span> tu-proyecto/</p>
+          <ul class="pg-files" id="pgFiles">
+            <li class="pg-file" data-file>
+              <span class="pg-dot" aria-hidden="true"></span>
+              <code>README.md</code>
+              <span class="pg-state">sin seguir</span>
+            </li>
+            <li class="pg-file" data-file>
+              <span class="pg-dot" aria-hidden="true"></span>
+              <code>hola.c</code>
+              <span class="pg-state">sin seguir</span>
+            </li>
+          </ul>
+          <div class="pg-panel__pie">
+            <p class="pg-meta">preparado (staging): <b id="pgStaging">—</b></p>
+            <p class="pg-meta">historial local: <b id="pgLocalHist">— sin commits todavía</b></p>
+          </div>
+        </article>
+
+        <!-- NUBE · origin -->
+        <article class="pg-panel" id="pgRemote">
+          <p class="pg-panel__cap">NUBE · origin (GitHub)</p>
+          <p class="pg-panel__title"><span class="pg-panel__ico" aria-hidden="true">☁</span> servidor remoto</p>
+          <p class="pg-meta">historial remoto: <b id="pgRemoteHist">— vacío</b></p>
+          <div class="pg-panel__pie">
+            <p class="pg-meta pg-meta--sync" id="pgSync">esperando tu primer push…</p>
+          </div>
+        </article>
+
+        <!-- Paquete (commit) que viaja en el push -->
+        <div class="pg-packet" id="pgPacket" aria-hidden="true">
+          <span aria-hidden="true">⬆</span> commit
+        </div>
+      </div>
+
+      <!-- ── Terminal del sandbox ── -->
+      <div class="pg-term">
+        <div class="pg-term__bar" aria-hidden="true">
+          <span class="pg-term__dot pg-term__dot--a"></span>
+          <span class="pg-term__dot pg-term__dot--b"></span>
+          <span class="pg-term__dot pg-term__dot--c"></span>
+          <span class="pg-term__name">Consola Git — tu-proyecto</span>
+        </div>
+        <!-- aria-live para lectores de pantalla; el typewriter va llenando esto -->
+        <pre class="pg-term__screen" id="pgScreen" role="log" aria-live="polite"></pre>
+      </div>
+
+      <!-- ── Controles ── -->
+      <div class="pg__controls">
+        <button type="button" class="pg-replay" id="pgReplay">
+          <span class="pg-replay__ico" aria-hidden="true">↻</span> Ver de nuevo
+        </button>
+        <p class="pg-hint">El flujo real de git: <code style="font-family:var(--mono)">init → add → commit → push</code></p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<style is:global>
+/* ─────────────────────────────────────────────────────────────────────────
+   TOKENS — paleta IDÉNTICA al juego (tema.gd) y a global.css de la landing.
+   Definidos sobre el propio componente (.pg) para que sea autocontenido:
+   no depende de un :root externo.
+   ───────────────────────────────────────────────────────────────────────── */
+.pg {
+  --fondo: #F5F2EA;        /* arena cálida           */
+  --texto: #232220;        /* casi negro cálido      */
+  --teal: #1C7C74;         /* primario               */
+  --teal-oscuro: #186B64;
+  --teal-tenue: rgba(28, 124, 116, 0.10);
+  --verde: #6BA368;        /* éxito                  */
+  --ambar: #E3A23A;        /* detalle                */
+  --panel: #FCFBF6;
+  --panel-borde: #E3DDCF;
+  --tenue: #8F897D;
+
+  /* Terminal del sandbox: texto claro sobre fondo oscuro, igual que el juego */
+  --term-bg: var(--texto);   /* #232220                                  */
+  --term-cmd: #82B7B3;       /* PRIMARIO_CLARO: eco del comando ($ git…) */
+  --term-out: var(--fondo);  /* salida en crema                          */
+  --term-amber: var(--ambar);
+
+  --radio: 14px;
+  --sombra-suave: 0 10px 30px -12px rgba(35, 34, 32, 0.18);
+  --sombra-tarjeta: 0 18px 44px -20px rgba(35, 34, 32, 0.28);
+
+  --serif: "Fraunces", Georgia, "Times New Roman", serif;
+  --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", "Consolas", ui-monospace, monospace;
+}
+
+/* ── Sección ──────────────────────────────────────────────────────────── */
+.pg {
+  box-sizing: border-box;
+  /* Mismo tratamiento que .git en la landing: degradé suave panel → fondo. */
+  background: linear-gradient(180deg, var(--panel) 0%, var(--fondo) 100%);
+  border-block: 1px solid var(--panel-borde);
+  color: var(--texto);
+  font-family: var(--sans);
+  font-size: 18px;
+  line-height: 1.6;
+  padding-block: clamp(72px, 10vw, 116px);
+  -webkit-font-smoothing: antialiased;
+}
+.pg *, .pg *::before, .pg *::after { box-sizing: border-box; }
+
+.pg__wrap {
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 5vw, 48px);
+}
+
+/* ── Encabezado del bloque ────────────────────────────────────────────── */
+.pg__head { max-width: 60ch; }
+.pg__sello {
+  display: inline-flex; align-items: center; gap: 0.5em;
+  background: var(--teal); color: #fff;
+  font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em;
+  padding: 0.35em 0.85em; border-radius: 999px; margin-bottom: 1rem;
+}
+.pg__head h2 {
+  font-family: var(--serif); font-weight: 600;
+  font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.08;
+  letter-spacing: -0.01em; margin: 0 0 0.4em;
+}
+.pg__lede {
+  font-size: clamp(1.12rem, 2.4vw, 1.4rem);
+  color: var(--tenue); margin: 0;
+}
+
+/* ── Demo ─────────────────────────────────────────────────────────────── */
+.pg__demo {
+  margin-top: clamp(32px, 5vw, 56px);
+  display: flex; flex-direction: column;
+  gap: clamp(16px, 2.4vw, 24px);
+}
+
+/* Contenedor de paneles: position:relative para la línea de conexión (SVG)
+   y el "paquete" (commit) que viaja por encima. */
+.pg__panels {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(28px, 4vw, 56px);   /* hueco amplio: ahí vive la línea PC↔nube */
+  align-items: stretch;
+}
+
+.pg-panel {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--panel-borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra-suave);
+  padding: clamp(18px, 2.2vw, 26px);
+}
+.pg-panel__cap {
+  margin: 0 0 0.7rem;
+  font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--tenue);
+}
+.pg-panel__title {
+  margin: 0 0 0.9rem;
+  font-family: var(--mono); font-weight: 700; font-size: 1.05rem;
+  color: var(--texto);
+  display: flex; align-items: center; gap: 0.5em;
+}
+.pg-panel__ico { font-size: 1.1em; line-height: 1; }
+
+/* Lista de archivos del panel local */
+.pg-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.55rem; }
+.pg-file { display: flex; align-items: center; gap: 0.6rem; }
+.pg-file code { font-family: var(--mono); font-size: 0.95rem; color: var(--texto); flex: 1 1 auto; }
+.pg-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex: none;
+  background: var(--tenue);          /* por defecto: sin seguir */
+  transition: background-color 0.4s ease;
+}
+.pg-dot--stage { background: var(--teal); }
+.pg-dot--ok { background: var(--verde); }
+.pg-state {
+  font-size: 0.82rem; color: var(--tenue); flex: none;
+  transition: color 0.4s ease;
+}
+.pg-state--stage { color: var(--teal); }
+.pg-state--ok { color: var(--verde); }
+
+/* Micro-rebote al cambiar de estado un archivo (sincronizado con cada comando) */
+.pg-file--pulse { animation: pg-pulse 0.5s ease; }
+@keyframes pg-pulse {
+  0% { transform: none; }
+  35% { transform: translateX(3px); }
+  100% { transform: none; }
+}
+
+/* Pie de cada panel */
+.pg-panel__pie {
+  margin-top: 0.9rem; padding-top: 0.85rem;
+  border-top: 1px solid var(--panel-borde);
+}
+.pg-meta { margin: 0 0 0.35rem; font-size: 0.9rem; color: var(--tenue); transition: color 0.4s ease; }
+.pg-meta:last-child { margin-bottom: 0; }
+.pg-meta--sync.is-on { color: var(--verde); }
+.pg-meta b { font-weight: 600; color: var(--texto); }
+
+/* Realce verde del check al sincronizar */
+.pg-meta--sync.is-pop { animation: pg-pop 0.6s ease; }
+@keyframes pg-pop {
+  0% { transform: none; }
+  30% { transform: scale(1.06); }
+  100% { transform: none; }
+}
+
+/* ── Línea de conexión PC ↔ nube (SVG superpuesto) ────────────────────── */
+.pg-link {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  overflow: visible; pointer-events: none;
+  z-index: 1;
+}
+.pg-link line {
+  stroke: var(--panel-borde); stroke-width: 2;
+  stroke-dasharray: 4 7; stroke-linecap: round;
+  opacity: 0.85; transition: stroke 0.4s ease, opacity 0.4s ease;
+}
+.pg-link.is-flowing line {
+  stroke: var(--teal); opacity: 1;
+  animation: pg-flow 0.55s linear infinite;
+}
+@keyframes pg-flow { to { stroke-dashoffset: -22; } }
+
+/* ── "Paquete" (commit) que viaja por la línea en el push ─────────────── */
+.pg-packet {
+  position: absolute; left: 0; top: 0; z-index: 2;
+  display: inline-flex; align-items: center; gap: 0.4em;
+  padding: 0.35em 0.7em;
+  background: var(--teal); color: #fff;
+  border-radius: 9px; box-shadow: var(--sombra-suave);
+  font-family: var(--mono); font-size: 0.8rem; font-weight: 500;
+  white-space: nowrap;
+  opacity: 0; pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.5);
+  /* La posición (left/top) se anima en el push; el JS la setea. */
+  transition: left 1s cubic-bezier(0.45, 0.05, 0.25, 1),
+              top  1s cubic-bezier(0.45, 0.05, 0.25, 1),
+              opacity 0.25s ease, transform 0.25s ease;
+}
+.pg-packet.is-visible { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.pg-packet.is-arrived { transform: translate(-50%, -50%) scale(1.18); opacity: 0; }
+
+/* ── Terminal ─────────────────────────────────────────────────────────── */
+.pg-term {
+  background: var(--term-bg);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra-tarjeta);
+  overflow: hidden;
+}
+/* Barra superior tipo consola, con el "semáforo" del juego */
+.pg-term__bar {
+  display: flex; align-items: center; gap: 0.55rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid rgba(245, 242, 234, 0.08);
+}
+.pg-term__dot { width: 11px; height: 11px; border-radius: 50%; }
+.pg-term__dot--a { background: var(--ambar); }
+.pg-term__dot--b { background: var(--verde); }
+.pg-term__dot--c { background: #C2553F; }
+.pg-term__name {
+  margin-left: 0.4rem;
+  font-family: var(--mono); font-size: 0.8rem; color: rgba(245, 242, 234, 0.55);
+}
+
+/* "Pantalla" desplazable: el contenido va creciendo y scrollea hacia abajo */
+.pg-term__screen {
+  margin: 0;
+  padding: clamp(14px, 1.8vw, 20px) clamp(16px, 2.2vw, 22px);
+  height: clamp(264px, 42vh, 348px);
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: clamp(12px, 1.45vw, 13.5px);
+  line-height: 1.62;
+  color: var(--term-out);
+  white-space: pre-wrap;       /* respeta sangrías y envuelve en angosto */
+  tab-size: 4;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 242, 234, 0.22) transparent;
+}
+.pg-term__screen::-webkit-scrollbar { width: 8px; }
+.pg-term__screen::-webkit-scrollbar-thumb { background: rgba(245, 242, 234, 0.2); border-radius: 8px; }
+
+.pg-line { white-space: pre-wrap; }
+.pg .t-amber { color: var(--term-amber); }
+.pg .t-cmd { color: var(--term-cmd); }
+.pg .t-out { color: var(--term-out); }
+.pg-prompt { color: var(--term-cmd); }
+
+/* Las líneas de OUTPUT entran con un fade sutil (dopamina, sin estridencia).
+   El estado EN REPOSO es visible (opacity:1, sin .pg-pre): así el texto nunca
+   queda oculto aunque el navegador no llegue a pintar la transición —p. ej. una
+   pestaña en segundo plano—. El JS agrega .pg-pre un instante y la quita. */
+.pg-line--out { transition: opacity 0.28s ease, transform 0.28s ease; }
+.pg-line--out.pg-pre { opacity: 0; transform: translateY(3px); }
+
+/* Cursor que parpadea */
+.pg-cursor {
+  display: inline-block; width: 0.55em; height: 1.05em;
+  margin-left: 1px; vertical-align: -0.18em;
+  background: var(--term-cmd);
+  animation: pg-blink 1.05s steps(1) infinite;
+}
+@keyframes pg-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+
+/* ── Controles ────────────────────────────────────────────────────────── */
+.pg__controls {
+  display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+.pg-replay {
+  display: inline-flex; align-items: center; gap: 0.5em;
+  padding: 0.7em 1.15em;
+  border: 1.5px solid var(--panel-borde); border-radius: 12px;
+  background: transparent; color: var(--teal);
+  font-family: var(--sans); font-size: 0.98rem; font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+.pg-replay:hover { background: var(--teal-tenue); border-color: var(--teal); transform: translateY(-2px); }
+.pg-replay:focus-visible { outline: 3px solid var(--ambar); outline-offset: 3px; }
+.pg-replay__ico { display: inline-block; transition: transform 0.5s ease; }
+.pg-replay.is-running .pg-replay__ico { animation: pg-spin 0.9s linear infinite; }
+@keyframes pg-spin { to { transform: rotate(360deg); } }
+.pg-hint { font-size: 0.92rem; color: var(--tenue); margin: 0; }
+
+/* ── Responsive: paneles apilados (la línea pasa a ser vertical) ──────── */
+@media (max-width: 720px) {
+  .pg { font-size: 17px; }
+  .pg__panels { grid-template-columns: 1fr; gap: clamp(34px, 9vw, 48px); }
+}
+
+/* ── prefers-reduced-motion: nada se mueve; el JS pinta el estado final ── */
+@media (prefers-reduced-motion: reduce) {
+  .pg-dot, .pg-state, .pg-meta,
+  .pg-packet, .pg-link line, .pg-replay { transition: none; }
+  .pg-line--out, .pg-line--out.pg-pre { transition: none; opacity: 1; transform: none; }
+  .pg-cursor, .pg-file--pulse, .pg-meta--sync.is-pop,
+  .pg-link.is-flowing line, .pg-replay.is-running .pg-replay__ico { animation: none; }
+}
+</style>
+
+<script is:inline>
+(function () {
+  "use strict";
+
+  /* ── Refs del DOM ───────────────────────────────────────────────────── */
+  const section   = document.getElementById("pgSection");
+  const screenEl   = document.getElementById("pgScreen");
+  const panels     = document.getElementById("pgPanels");
+  const localPanel = document.getElementById("pgLocal");
+  const remotePanel= document.getElementById("pgRemote");
+  const linkSvg    = document.getElementById("pgLink");
+  const linkLine   = linkSvg.querySelector("line");
+  const packet     = document.getElementById("pgPacket");
+  const replayBtn  = document.getElementById("pgReplay");
+
+  const files      = Array.from(document.querySelectorAll("#pgFiles [data-file]"));
+  const stagingEl  = document.getElementById("pgStaging");
+  const localHist  = document.getElementById("pgLocalHist");
+  const remoteHist = document.getElementById("pgRemoteHist");
+  const syncEl     = document.getElementById("pgSync");
+
+  const REDUCED = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── Ritmo de la animación (ms) ─────────────────────────────────────── */
+  const SPEED = {
+    char: 34,        // tipeo por carácter
+    afterCmd: 230,   // pausa entre comando tipeado y su output
+    betweenOut: 75,  // entre líneas de output
+    afterBlock: 430, // pausa antes del siguiente comando
+    push: 1000,      // viaje del commit a la nube (= transition del paquete)
+  };
+
+  /* ── Estados de archivo (gris → teal → verde) ───────────────────────── */
+  const STATES = {
+    untracked: { dot: "",             label: "sin seguir", state: "" },
+    staged:    { dot: "pg-dot--stage", label: "preparado", state: "pg-state--stage" },
+    committed: { dot: "pg-dot--ok",    label: "guardado",  state: "pg-state--ok" },
+  };
+
+  function setFiles(key, pulse) {
+    const s = STATES[key];
+    files.forEach(function (li) {
+      const dot = li.querySelector(".pg-dot");
+      const st  = li.querySelector(".pg-state");
+      dot.className = "pg-dot " + s.dot;
+      st.className  = "pg-state " + s.state;
+      st.textContent = s.label;
+      if (pulse && !REDUCED) {
+        li.classList.remove("pg-file--pulse");
+        void li.offsetWidth;            // reinicia la animación
+        li.classList.add("pg-file--pulse");
+      }
+    });
+  }
+
+  /* ── Reset al estado inicial (repo recién traído, nada trackeado) ────── */
+  function resetState() {
+    setFiles("untracked", false);
+    stagingEl.textContent = "—";
+    localHist.textContent = "— sin commits todavía";
+    remoteHist.textContent = "— vacío";
+    syncEl.textContent = "esperando tu primer push…";
+    syncEl.classList.remove("is-on", "is-pop");
+    screenEl.innerHTML = "";
+    linkSvg.classList.remove("is-flowing");
+    packet.classList.remove("is-visible", "is-arrived");
+  }
+
+  /* ════════════════════════════════════════════════════════════════════
+     GUION: el flujo real de git que se ve en el sandbox del juego.
+     Cada paso tiene el comando, su salida, y los efectos sobre los paneles.
+     ════════════════════════════════════════════════════════════════════ */
+  const SCRIPT = [
+    { intro: "Sandbox de git. Escribí comandos reales abajo. Empezá por: git init" },
+
+    { cmd: "git init",
+      out: ["Inicializaste un repositorio git vacío en tu-proyecto/."] },
+
+    { cmd: "git status",
+      out: ["En la rama main", "", "Archivos sin seguir:", "    README.md", "    hola.c"],
+      // ya están "sin seguir" desde el arranque; un pulso para enfatizar
+      before: function () { setFiles("untracked", true); } },
+
+    { cmd: "git add .",
+      out: ["Preparaste: README.md, hola.c"],
+      after: function () { setFiles("staged", true); stagingEl.textContent = "README.md, hola.c"; } },
+
+    { cmd: 'git commit -m "primer commit"',
+      out: ["[main #1] primer commit", " 2 archivo(s) commiteado(s)."],
+      after: function () {
+        setFiles("committed", true);
+        stagingEl.textContent = "—";
+        localHist.textContent = "1 commit · último: «primer commit»";
+      } },
+
+    { cmd: "git push",
+      out: ["Subiste 1 commit(s) a la nube (origin/main)."],
+      after: function () { return runPush(); } },   // dispara el viaje del commit
+  ];
+
+  /* ── Utilidades ─────────────────────────────────────────────────────── */
+  const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  const esc = function (s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); };
+  const scrollDown = function () { screenEl.scrollTop = screenEl.scrollHeight; };
+
+  // Token de ejecución: si se reinicia (Ver de nuevo), la corrida vieja se aborta.
+  let runId = 0;
+
+  /* Añade una línea ya completa (output / intro) */
+  function addLine(cls, html) {
+    const div = document.createElement("div");
+    div.className = "pg-line " + cls;
+    div.innerHTML = html;
+    screenEl.appendChild(div);
+    scrollDown();
+    return div;
+  }
+
+  /* Tipea un comando carácter por carácter, con cursor parpadeante al final */
+  async function typeCommand(text, myRun) {
+    const div = document.createElement("div");
+    div.className = "pg-line t-cmd";
+    screenEl.appendChild(div);
+    const cursor = '<span class="pg-cursor"></span>';
+    let typed = "";
+    div.innerHTML = '<span class="pg-prompt">$ </span>' + cursor;
+    for (const ch of text) {
+      if (myRun !== runId) return null;          // corrida abortada
+      typed += ch;
+      div.innerHTML = '<span class="pg-prompt">$ </span>' + esc(typed) + cursor;
+      scrollDown();
+      await sleep(SPEED.char);
+    }
+    return div;
+  }
+
+  /* ── El push: el commit "viaja" de la PC a la nube por la línea ─────── */
+  function geometry() {
+    // Coordenadas relativas al contenedor de paneles, válidas en desktop
+    // (paneles lado a lado) y en mobile (apilados → línea vertical).
+    const box = panels.getBoundingClientRect();
+    const a = localPanel.getBoundingClientRect();
+    const b = remotePanel.getBoundingClientRect();
+    const horizontal = Math.abs(b.left - a.left) > Math.abs(b.top - a.top);
+    if (horizontal) {
+      return {
+        x1: a.right - box.left, y1: a.top + a.height / 2 - box.top,
+        x2: b.left  - box.left, y2: b.top + b.height / 2 - box.top,
+      };
+    }
+    return {
+      x1: a.left + a.width / 2 - box.left, y1: a.bottom - box.top,
+      x2: b.left + b.width / 2 - box.left, y2: b.top    - box.top,
+    };
+  }
+
+  function drawLink() {
+    const g = geometry();
+    linkLine.setAttribute("x1", g.x1); linkLine.setAttribute("y1", g.y1);
+    linkLine.setAttribute("x2", g.x2); linkLine.setAttribute("y2", g.y2);
+    return g;
+  }
+
+  function markSynced() {
+    remoteHist.textContent = "1 commit · último: «primer commit»";
+    syncEl.textContent = "✓ sincronizado con tu PC";
+    syncEl.classList.add("is-on");
+    if (!REDUCED) {
+      syncEl.classList.remove("is-pop"); void syncEl.offsetWidth;
+      syncEl.classList.add("is-pop");
+    }
+  }
+
+  function runPush() {
+    const g = drawLink();
+    if (REDUCED) { markSynced(); return Promise.resolve(); }
+
+    return new Promise(function (resolve) {
+      // 1) Aparece el paquete en el lado de la PC
+      packet.style.left = g.x1 + "px";
+      packet.style.top  = g.y1 + "px";
+      packet.classList.remove("is-arrived");
+      packet.classList.add("is-visible");
+      linkSvg.classList.add("is-flowing");
+
+      // 2) Próximo frame: viaja hacia la nube (transition de left/top)
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          packet.style.left = g.x2 + "px";
+          packet.style.top  = g.y2 + "px";
+        });
+      });
+
+      // 3) Al llegar: "pop", desaparece y la nube queda sincronizada
+      let done = false;
+      const onEnd = function (e) {
+        if (e && e.propertyName !== "left") return;
+        if (done) return; done = true;
+        packet.removeEventListener("transitionend", onEnd);
+        packet.classList.add("is-arrived");
+        linkSvg.classList.remove("is-flowing");
+        markSynced();
+        setTimeout(function () { packet.classList.remove("is-visible"); }, 260);
+        resolve();
+      };
+      packet.addEventListener("transitionend", onEnd);
+      setTimeout(onEnd, SPEED.push + 220);   // red de seguridad si no dispara el evento
+    });
+  }
+
+  /* ── Estado final pintado de una (reduced-motion o fallback) ────────── */
+  function renderFinal() {
+    setFiles("committed", false);
+    stagingEl.textContent = "—";
+    localHist.textContent = "1 commit · último: «primer commit»";
+    screenEl.innerHTML = "";
+    addLine("t-amber", esc(SCRIPT[0].intro));
+    for (let i = 1; i < SCRIPT.length; i++) {
+      addLine("t-cmd", '<span class="pg-prompt">$ </span>' + esc(SCRIPT[i].cmd));
+      SCRIPT[i].out.forEach(function (l) { addLine("t-out", esc(l) || "&nbsp;"); });
+    }
+    drawLink();
+    markSynced();
+    screenEl.scrollTop = 0;
+  }
+
+  /* ── Corrida completa del guion (typewriter) ────────────────────────── */
+  async function run() {
+    const myRun = ++runId;
+    resetState();
+    replayBtn.classList.add("is-running");
+
+    if (REDUCED) { renderFinal(); replayBtn.classList.remove("is-running"); return; }
+
+    // Línea de intro (ámbar)
+    addLine("t-amber", esc(SCRIPT[0].intro));
+    await sleep(SPEED.afterBlock);
+    if (myRun !== runId) return;
+
+    for (let i = 1; i < SCRIPT.length; i++) {
+      const step = SCRIPT[i];
+      if (step.before) step.before();
+
+      await typeCommand(step.cmd, myRun);
+      if (myRun !== runId) return;
+      await sleep(SPEED.afterCmd);
+      if (myRun !== runId) return;
+
+      // Output del comando, línea por línea
+      for (const line of step.out) {
+        addLine("t-out", esc(line) || "&nbsp;");
+        await sleep(SPEED.betweenOut);
+        if (myRun !== runId) return;
+      }
+
+      if (step.after) await step.after();
+      if (myRun !== runId) return;
+      await sleep(SPEED.afterBlock);
+      if (myRun !== runId) return;
+    }
+
+    // Prompt final "listo", con cursor parpadeando
+    addLine("t-cmd", '<span class="pg-prompt">$ </span><span class="pg-cursor"></span>');
+    replayBtn.classList.remove("is-running");
+  }
+
+  /* ── Disparadores ───────────────────────────────────────────────────── */
+  replayBtn.addEventListener("click", run);
+
+  // Recalcular la línea si cambia el tamaño (mientras la nube ya está sincronizada)
+  let resizeT;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(function () { if (syncEl.classList.contains("is-on")) drawLink(); }, 120);
+  });
+
+  // Arranca SOLO al entrar en viewport (una vez)
+  let started = false;
+  if ("IntersectionObserver" in window) {
+    const io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting && !started) { started = true; run(); io.disconnect(); }
+      });
+    }, { threshold: 0.4 });
+    io.observe(section);
+  } else {
+    run();   // fallback
+  }
+})();
+</script>

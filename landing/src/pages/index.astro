@@ -3,6 +3,7 @@ import Base from "../layouts/Base.astro";
 import Robot from "../components/Robot.astro";
 import Boton from "../components/Boton.astro";
 import Icono from "../components/Icono.astro";
+import GitAnimado from "../components/GitAnimado.astro";
 
 // ╔══════════════════════════════════════════════════════════════════════╗
 // ║  ⚙️  COMPLETÁ ESTAS DOS URLS (Angelo)                                  ║
@@ -89,65 +90,8 @@ const bullets = [
     </div>
   </section>
 
-  <!-- ── GIT (sección destacada) ──────────────────────────────────────── -->
-  <section class="git" data-reveal>
-    <div class="container">
-      <div class="git__head">
-        <span class="git__sello">★ El diferencial</span>
-        <h2>Y encima, aprendés Git de verdad</h2>
-        <p class="lede muted">
-          Un módulo aparte arranca de cero: qué es un repositorio, tu compu contra la
-          nube, y una consola donde escribís comandos de verdad y ves los archivos
-          moverse de un lado al otro.
-        </p>
-      </div>
-      <!-- Recreación (HTML/CSS, no interactiva) de la consola del sandbox de Git.
-           Réplica fiel del juego como elemento de la página; texto fijo/decorativo. -->
-      <div class="git__demo" role="img"
-           aria-label="Recreación de la consola del sandbox de Git de Paso: el panel de tu PC y el de la nube, sobre una terminal con el flujo git init, add, commit y push.">
-        <div class="git__paneles">
-          <article class="gpanel">
-            <p class="gpanel__cap">TU PC · LOCAL</p>
-            <p class="gpanel__title"><span class="gpanel__ico" aria-hidden="true">📁</span> tu-proyecto/</p>
-            <ul class="gfiles">
-              <li><span class="gdot gdot--ok" aria-hidden="true"></span><code>README.md</code><span class="gstate gstate--ok">guardado</span></li>
-              <li><span class="gdot gdot--ok" aria-hidden="true"></span><code>hola.c</code><span class="gstate gstate--ok">guardado</span></li>
-            </ul>
-            <div class="gpanel__pie">
-              <p class="gmeta">preparado (staging):&nbsp; —</p>
-              <p class="gmeta">historial local:&nbsp; 1 commit · último: «primer commit»</p>
-            </div>
-          </article>
-          <article class="gpanel">
-            <p class="gpanel__cap">NUBE · origin (GitHub)</p>
-            <p class="gpanel__title"><span class="gpanel__ico" aria-hidden="true">☁</span> servidor remoto</p>
-            <p class="gmeta">historial remoto:&nbsp; 1 commit · último: «primer commit»</p>
-            <div class="gpanel__pie">
-              <p class="gmeta gmeta--sync">✓ sincronizado con tu PC</p>
-            </div>
-          </article>
-        </div>
-        <div class="gterm">
-<pre class="gterm__pre"><span class="t-amber">Sandbox de git. Escribí comandos reales abajo. Empezá por: git init</span>
-<span class="t-cmd">$ git init</span>
-<span class="t-out">Inicializaste un repositorio git vacío en tu-proyecto/.</span>
-<span class="t-cmd">$ git status</span>
-<span class="t-out">En la rama main</span>
-
-<span class="t-out">Archivos sin seguir:</span>
-<span class="t-out">    README.md</span>
-<span class="t-out">    hola.c</span>
-<span class="t-cmd">$ git add .</span>
-<span class="t-out">Preparaste: README.md, hola.c</span>
-<span class="t-cmd">$ git commit -m "primer commit"</span>
-<span class="t-out">[main #1] primer commit</span>
-<span class="t-out"> 2 archivo(s) commiteado(s).</span>
-<span class="t-cmd">$ git push</span>
-<span class="t-out">Subiste 1 commit(s) a la nube (origin/main).</span></pre>
-        </div>
-      </div>
-    </div>
-  </section>
+  <!-- ── GIT (sección destacada, animada) ─────────────────────────────── -->
+  <GitAnimado />
 
   <!-- ── CTA FINAL ────────────────────────────────────────────────────── -->
   <section class="centro" data-reveal>
