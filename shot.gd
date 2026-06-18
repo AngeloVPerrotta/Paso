@@ -41,25 +41,35 @@ func _initialize() -> void:
 func _shot_git() -> void:
 	var g = escena.git_capa
 	escena.inicio_capa.visible = false
-	g.abrir()                                  # paso 0: ¿qué es un repo? (conceptual)
-	await _esperar(24)                          # corre la animación de entrada
+	g.abrir()                                  # paso 0: repo (le saca fotos)
+	await _esperar(24)                          # spotlight en intensidad alta
+	await _guardar("shot_git_spotlight.png")    # SPOTLIGHT activo (oscurece todo menos el foco + burbuja)
+	await _esperar(70)                          # se levanta el velo
 	g._siguiente()                             # paso 1: local y nube (conceptual)
-	await _esperar(24)
+	await _esperar(90)                          # línea dibujada + velo abajo
 	await _guardar("shot_git_nube.png")
-	g._siguiente(); g._siguiente(); g._siguiente()   # 2 cambios, 3 add, 4 commit (acción)
-	await _esperar(6)
-	g._lienzo.prog = 0.5                        # cajita entrando al historial (frame medio)
+	g._siguiente()                             # paso 2: cambio+add (elegís qué entra en la foto)
+	await _esperar(90)
+	g._lienzo.prog = 0.6                        # la cajita entrando al marco de "la próxima foto"
+	g._lienzo.queue_redraw()
+	await _esperar(2)
+	await _guardar("shot_git_add.png")          # metáfora de la foto
+	g._siguiente()                             # paso 3: commit (acción)
+	await _esperar(90)
+	g._lienzo.prog = 0.5
 	g._lienzo.queue_redraw()
 	await _esperar(2)
 	await _guardar("shot_git_commit.png")
-	g._siguiente()                             # paso 5: push (acción)
-	await _esperar(6)
-	g._lienzo.prog = 0.5                        # la cajita VIAJANDO a mitad de la línea PC→nube
+	g._siguiente()                             # paso 4: push — transición con viaje grande del robot
+	await _esperar(10)                          # robot a mitad del viaje (commit→push)
+	await _guardar("shot_git_viaje.png")        # el ROBOT viajando
+	await _esperar(80)
+	g._lienzo.prog = 0.5                        # la cajita viajando por la línea PC→nube
 	g._lienzo.queue_redraw()
 	await _esperar(2)
 	await _guardar("shot_git_push.png")
-	g._siguiente(); g._siguiente()             # 6 pull, 7 resumen
-	await _esperar(12)
+	g._siguiente(); g._siguiente()             # 5 pull, 6 cierre
+	await _esperar(60)
 	await _guardar("shot_git_resumen.png")
 	g.cerrar_modulo()
 	await _esperar(2)
