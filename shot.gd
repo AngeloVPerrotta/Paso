@@ -39,21 +39,29 @@ func _initialize() -> void:
 
 # Módulo "Aprendé Git": ancla (local vs nube), flujo (push: foto viajando) y resumen.
 func _shot_git() -> void:
+	var g = escena.git_capa
 	escena.inicio_capa.visible = false
-	escena.git_capa.abrir()
-	await _esperar(4)
-	escena.git_capa._siguiente()              # paso 1: local vs nube (ancla)
-	await _esperar(18)
+	g.abrir()                                  # paso 0: ¿qué es un repo? (conceptual)
+	await _esperar(24)                          # corre la animación de entrada
+	g._siguiente()                             # paso 1: local y nube (conceptual)
+	await _esperar(24)
 	await _guardar("shot_git_nube.png")
-	for n in 4:
-		escena.git_capa._siguiente()          # hasta paso 5: git push
-	await _esperar(22)                         # la foto viajando a mitad de camino
+	g._siguiente(); g._siguiente(); g._siguiente()   # 2 cambios, 3 add, 4 commit (acción)
+	await _esperar(6)
+	g._lienzo.prog = 0.5                        # cajita entrando al historial (frame medio)
+	g._lienzo.queue_redraw()
+	await _esperar(2)
+	await _guardar("shot_git_commit.png")
+	g._siguiente()                             # paso 5: push (acción)
+	await _esperar(6)
+	g._lienzo.prog = 0.5                        # la cajita VIAJANDO a mitad de la línea PC→nube
+	g._lienzo.queue_redraw()
+	await _esperar(2)
 	await _guardar("shot_git_push.png")
-	escena.git_capa._siguiente()
-	escena.git_capa._siguiente()              # paso 7: resumen de comandos
-	await _esperar(8)
+	g._siguiente(); g._siguiente()             # 6 pull, 7 resumen
+	await _esperar(12)
 	await _guardar("shot_git_resumen.png")
-	escena.git_capa.cerrar_modulo()
+	g.cerrar_modulo()
 	await _esperar(2)
 
 
