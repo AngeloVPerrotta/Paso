@@ -126,13 +126,12 @@ section { padding-block: clamp(72px, 10vw, 116px); }
 .cta-fila .btn { flex: 1 1 200px; }   /* lado a lado, misma medida (se reparten igual) */
 .cta-micro { margin-top: 1rem; font-size: 0.95rem; color: var(--tenue); }
 
-/* ── Logo chico (robot + wordmark) ────────────────────────────────────── */
+/* ── Logo chico (wordmark) ─────────────────────────────────────────────── */
 .logo {
   position: absolute; top: clamp(16px, 3vw, 28px); left: clamp(20px, 5vw, 48px);
-  display: inline-flex; align-items: center; gap: 0.5rem;
+  display: inline-flex; align-items: center;
   color: var(--texto); text-decoration: none; z-index: 3;
 }
-.logo__mark { width: 30px; flex: none; line-height: 0; }
 .logo__word {
   font-family: var(--serif); font-weight: 600; font-size: 1.5rem;
   letter-spacing: -0.01em; transition: color 0.15s ease;
