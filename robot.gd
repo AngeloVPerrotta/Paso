@@ -21,8 +21,11 @@ const COL_ACENTO := Tema.CALIDO         # ámbar: antena, cachetes, pecho
 const COL_PANEL := Tema.PANEL
 const COL_VISOR := Color("232220")      # visor oscuro = texto de la paleta
 
+signal presionado             # el jugador clickeó el robot (solo si es interactivo)
+
 var mood := "idle"
 var hablando := false         # robot-tutor hablando: la antena oscila (y parpadea) un toque
+var interactivo := false      # solo el robot del juego: reacciona al hover y emite `presionado`
 
 var _t := 0.0                 # tiempo para animaciones cíclicas
 var _blink := 0.0             # fase de parpadeo (0 = ojos abiertos)
@@ -30,11 +33,42 @@ var _prox_blink := 2.0
 var _salto := 0.0             # impulso de salto (decae)
 var _antena := 0.0            # fase de pulso de antena
 var _habla := 0.0             # fase del "hablar": oscilación de antena, viva al aparecer (balbuceo)
+var _hover := false           # el mouse está encima (solo si interactivo)
+var _hover_amt := 0.0         # 0..1 suavizado: intensidad de la micro-reacción de hover
 
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(120, 120)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+# Activa la interacción cosmética (hover + click). Solo el robot del juego la usa; los
+# demás (inicio, demo, tutor) quedan inertes. No corre lógica de juego: es presentación.
+func set_interactivo(activo: bool) -> void:
+	interactivo = activo
+	mouse_filter = Control.MOUSE_FILTER_STOP if activo else Control.MOUSE_FILTER_IGNORE
+	if activo:
+		if not mouse_entered.is_connected(_on_mouse_entered):
+			mouse_entered.connect(_on_mouse_entered)
+			mouse_exited.connect(_on_mouse_exited)
+
+
+func _on_mouse_entered() -> void:
+	_hover = true
+	_blink = 1.0                 # un parpadeo de "atender" al pasar por encima
+	queue_redraw()
+
+
+func _on_mouse_exited() -> void:
+	_hover = false
+
+
+func _gui_input(event: InputEvent) -> void:
+	if not interactivo:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		presionado.emit()
+		accept_event()
 
 
 func set_mood(nuevo: String) -> void:
@@ -73,6 +107,8 @@ func _process(delta: float) -> void:
 		_antena += delta
 	if hablando:
 		_habla += delta
+	# Hover: la intensidad sube/baja suave (entra rápido, sale suave). Mueve la antena.
+	_hover_amt = move_toward(_hover_amt, 1.0 if _hover else 0.0, delta * (6.0 if _hover else 4.0))
 	queue_redraw()
 
 
@@ -140,7 +176,12 @@ func _draw() -> void:
 	if hablando:
 		var intens := 0.35 + 0.65 * exp(-3.0 * _habla)
 		sway = sin(_habla * 21.0) * 3.4 * intens
-	var tip := antena_base + Vector2(sway, -13)
+	# Hover (cosmético): la antena se inclina apenas y se yergue un toque, como atendiendo.
+	var lift := 0.0
+	if _hover_amt > 0.0:
+		sway += sin(_t * 6.0) * 2.4 * _hover_amt
+		lift = 2.0 * _hover_amt
+	var tip := antena_base + Vector2(sway, -13 - lift)
 	if mood == "dormido":
 		tip = antena_base + Vector2(8.0, -5.0)   # antena caída: dormido
 	draw_line(antena_base, tip, COL_OJO, 2.0)
@@ -149,7 +190,9 @@ func _draw() -> void:
 		brillo = COL_ACENTO.lerp(Color.WHITE, 0.5 + 0.5 * sin(_antena * 12.0))
 	elif mood == "dormido":
 		brillo = Color(COL_ACENTO.r, COL_ACENTO.g, COL_ACENTO.b, 0.45)   # luz tenue
-	draw_circle(tip + Vector2(0, -2), 4.5 * late, brillo)
+	if _hover_amt > 0.0:
+		brillo = brillo.lerp(Color.WHITE, 0.3 * _hover_amt)               # un brillo extra al atender
+	draw_circle(tip + Vector2(0, -2), (4.5 + 0.6 * _hover_amt) * late, brillo)
 
 
 # La silueta del robot (cuerpo + cuello + cabeza solapados) en un color, opcionalmente

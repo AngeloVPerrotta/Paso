@@ -226,6 +226,13 @@ var _chistes_baraja: Array = []          # cola barajada de índices (rotación 
 var _idle_t := 0.0                       # segundos sin input del jugador
 var _dormido := false                    # el robot del juego está cabeceando
 
+# Charla ocasional: al clickear el robot suelta una frase seca (reusa el pool de chistes
+# + saludos genéricos y la burbuja del tutor). Auto-cierra a los pocos segundos o al click.
+const CHARLA_SEG := 4.5                   # auto-cierre de la burbuja de charla
+var _charla_activa := false              # hay una burbuja de charla en pantalla
+var _ultima_charla := ""                 # frase anterior (para no repetirla)
+var _charla_id := 0                      # token: el timer solo cierra SU propia burbuja
+
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -254,12 +261,15 @@ func _ready() -> void:
 
 # Idle (humor sutil): si el jugador deja el juego quieto un rato, el robot del nivel
 # cabecea (ojos cerrados). Cualquier input lo despierta. No corre en headless/tests.
-func _input(_event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
 	_idle_t = 0.0
 	if _dormido:
 		_dormido = false
 		if robot and robot.mood == "dormido":
 			robot.set_mood("idle")
+	# Click en cualquier lado cierra la charla ocasional (también el tap en la burbuja).
+	if _charla_activa and event is InputEventMouseButton and event.pressed:
+		_cerrar_charla()
 
 
 func _process(delta: float) -> void:
@@ -568,6 +578,8 @@ func _construir_escenario() -> Control:
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fila_top.add_child(sp)
 	robot = Robot.new()
+	robot.set_interactivo(true)               # hover + click (presentación: charla ocasional)
+	robot.presionado.connect(_on_robot_click)
 	fila_top.add_child(robot)
 	col.add_child(fila_top)
 
@@ -2504,6 +2516,7 @@ func _finalizar_comentario() -> void:
 		robot.modulate.a = 1.0
 	_tutor_activo = false
 	_tutor_cerrando = false
+	_charla_activa = false
 
 
 # Cierre inmediato (sin animación) cuando se navega de nivel o se abre otra pantalla.
@@ -2522,6 +2535,7 @@ func _tutor_cerrar_inmediato() -> void:
 		robot.modulate.a = 1.0
 	_tutor_activo = false
 	_tutor_cerrando = false
+	_charla_activa = false
 	_gano_pendiente = false
 
 
@@ -2575,6 +2589,46 @@ func _comentario_ganar_random() -> void:
 	var c := _chiste_random()
 	if c != "":
 		_robot_comenta(c, "feliz")
+
+
+# Click en el robot del juego: suelta una frase seca (charla ocasional). Reusa el pool
+# (chistes de programación + saludos genéricos) y la MISMA burbuja del tutor. No molesta:
+# si ya hay algo hablando o el robot está corriendo un programa, no dispara (mismo guard).
+# La burbuja se cierra sola a CHARLA_SEG o al primer click (lo maneja _input).
+func _on_robot_click() -> void:
+	if corriendo or not _tutor_libre():
+		return
+	var frase := _charla_random()
+	if frase == "" or not _robot_comenta(frase, "feliz", false):
+		return
+	_charla_activa = true
+	_charla_id += 1
+	var id := _charla_id
+	get_tree().create_timer(CHARLA_SEG).timeout.connect(func():
+		if _charla_activa and _charla_id == id:
+			_cerrar_charla())
+
+
+func _cerrar_charla() -> void:
+	if not _charla_activa:
+		return
+	_charla_activa = false
+	_cerrar_comentario()
+
+
+# Frase de charla rotando SIN repetir la anterior (chistes + saludos genéricos secos).
+func _charla_random() -> String:
+	var pool: Array = []
+	pool.append_array(CHISTES_GANAR)
+	pool.append_array(SALUDOS_GENERICOS)
+	var ops := pool.filter(func(s): return s != _ultima_charla)
+	if ops.is_empty():
+		ops = pool
+	if ops.is_empty():
+		return ""
+	var elegida: String = ops[randi() % ops.size()]
+	_ultima_charla = elegida
+	return elegida
 
 
 # Issue #1 — AVANCE al ganar, SEPARADO del gate de código. La celebración (banner) y el
