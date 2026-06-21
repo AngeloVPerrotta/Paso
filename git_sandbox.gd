@@ -47,10 +47,13 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
+	var _fb_simbolos := load("res://assets/fallback_simbolos.ttf")   # símbolos en web (ver main.gd)
 	_mono = SystemFont.new()
 	_mono.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "JetBrains Mono", "DejaVu Sans Mono", "monospace"])
+	_mono.fallbacks = [_fb_simbolos]
 	_sans = SystemFont.new()
 	_sans.font_names = PackedStringArray(["Segoe UI", "Inter", "Helvetica Neue", "Arial", "sans-serif"])
+	_sans.fallbacks = [_fb_simbolos]
 	modelo = GitMini.new()
 	_construir()
 
@@ -144,13 +147,13 @@ func _construir() -> void:
 	# Toolbar para "tocar" archivos / simular la nube.
 	var tb := HBoxContainer.new()
 	tb.add_theme_constant_override("separation", 8)
-	var b_edit := _boton("✎ editar un archivo", false)
+	var b_edit := _boton("editar un archivo", false)
 	b_edit.pressed.connect(_editar_archivo)
 	tb.add_child(b_edit)
 	var b_new := _boton("+ archivo nuevo", false)
 	b_new.pressed.connect(_nuevo_archivo)
 	tb.add_child(b_new)
-	var b_sim := _boton("☁ simular cambio en la nube", false)
+	var b_sim := _boton("simular cambio en la nube", false)
 	b_sim.pressed.connect(_simular_remoto)
 	tb.add_child(b_sim)
 	v.add_child(tb)
@@ -279,14 +282,14 @@ func _construir_ejercicio() -> Control:
 	_ej_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_ej_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(_ej_label)
-	_ej_pista_btn = _boton("💡 ¿Cómo?", false)
+	_ej_pista_btn = _boton("¿Cómo?", false)
 	_ej_pista_btn.pressed.connect(_revelar_pista)
 	h.add_child(_ej_pista_btn)
 	_ej_btn = _boton("Siguiente ▶", true)
 	_ej_btn.pressed.connect(_ejercicio_siguiente)
 	h.add_child(_ej_btn)
 
-	# Fila de ayuda graduada (oculta hasta que la piden con 💡): pista → comando.
+	# Fila de ayuda graduada (oculta hasta que la piden con «¿Cómo?»): pista → comando.
 	_ej_pista_label = _lbl("", _sans, 14, Tema.TEXTO)
 	_ej_pista_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_ej_pista_label.visible = false
@@ -303,7 +306,7 @@ func _revelar_pista() -> void:
 	if _pista_nivel == 1:
 		_ej_pista_label.add_theme_font_override("font", _sans)
 		_ej_pista_label.add_theme_color_override("font_color", Tema.TEXTO)
-		_ej_pista_label.text = "💡 " + str(e.get("pista", ""))
+		_ej_pista_label.text = str(e.get("pista", ""))
 		_ej_pista_btn.text = "Ver el comando"
 	else:
 		_ej_pista_label.add_theme_font_override("font", _mono)
@@ -322,7 +325,7 @@ func _construir_pc() -> Control:
 	v.add_theme_constant_override("separation", 8)
 	panel.add_child(v)
 	v.add_child(_lbl("TU PC · LOCAL", _sans, 13, Tema.TENUE))
-	v.add_child(_lbl("📁 tu-proyecto/", _mono, 16, Tema.TEXTO))
+	v.add_child(_lbl("▸ tu-proyecto/", _mono, 16, Tema.TEXTO))
 	_pc_archivos = VBoxContainer.new()
 	_pc_archivos.add_theme_constant_override("separation", 4)
 	v.add_child(_pc_archivos)
@@ -344,7 +347,7 @@ func _construir_nube() -> Control:
 	v.add_theme_constant_override("separation", 8)
 	panel.add_child(v)
 	v.add_child(_lbl("NUBE · origin (GitHub)", _sans, 13, Tema.TENUE))
-	v.add_child(_lbl("☁ servidor remoto", _mono, 16, Tema.TEXTO))
+	v.add_child(_lbl("servidor remoto", _mono, 16, Tema.TEXTO))
 	_nube_hist = _lbl("", _sans, 13, Tema.TEXTO)
 	_nube_hist.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	v.add_child(_nube_hist)
@@ -502,7 +505,7 @@ func _fila_archivo(nombre: String, estado: String) -> Control:
 func _ejercicios() -> Array:
 	# Cada uno: {texto (OBJETIVO), pista (conceptual), comando (último recurso),
 	# hecho: Callable()->bool, [prepara_remoto]}. El comando NO se muestra de entrada:
-	# se revela con el botón 💡 en dos niveles (pista → comando) para hacer pensar.
+	# se revela con el botón «¿Cómo?» en dos niveles (pista → comando) para hacer pensar.
 	# Los pasos 6/7/8 miden progreso RELATIVO (baselines al entrar al paso).
 	return [
 		{"texto": "Iniciá el repositorio.",
@@ -530,7 +533,7 @@ func _ejercicios() -> Array:
 			"comando": "git push",
 			"hecho": func(): return modelo.remoto.size() >= 1},
 		{"texto": "Hacé un cambio en un archivo y guardalo.",
-			"pista": "Tocá «✎ editar un archivo», después preparalo y commiteá (los dos pasos).",
+			"pista": "Tocá «editar un archivo», después preparalo y commiteá (los dos pasos).",
 			"comando": "git add .   ·   git commit -m \"...\"",
 			"hecho": func(): return modelo.commits.size() > _base_commits},
 		{"texto": "Subí ese commit nuevo.",
@@ -561,7 +564,7 @@ func _mostrar_ejercicio() -> void:
 	_ej_pista_btn.visible = e.has("comando")
 	_ej_pista_btn.disabled = false
 	_ej_pista_btn.modulate.a = 1.0
-	_ej_pista_btn.text = "💡 ¿Cómo?"
+	_ej_pista_btn.text = "¿Cómo?"
 	# Baseline al entrar al paso: los pasos 6/7 se cuentan por lo que pase desde acá.
 	_base_commits = modelo.commits.size()
 	_base_remoto = modelo.remoto.size()

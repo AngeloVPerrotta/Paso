@@ -113,7 +113,7 @@ var filas_sb: Array = []                # StyleBoxFlat por linea (se muta para r
 var programa_vbox: VBoxContainer
 var titulo_label: Label
 var desc_label: Label
-var meta_label: Label                   # "🎯 objetivo … · tu mejor …"
+var meta_label: Label                   # "◎ objetivo … · tu mejor …"
 var paleta_box: HFlowContainer
 var progreso_box: HFlowContainer
 var mano_celda: Panel
@@ -189,7 +189,7 @@ var _tuto_mostrar_como := false         # true SOLO en la leyenda "¿Cómo se ju
 # de "primera vez" en Puntajes (vio_robot_*): "Reiniciar progreso" los borra solos.
 const TUTOR_PRIMER_PROG := "¡Buen comienzo! Apilá las órdenes y yo las hago una por una, de arriba a abajo."
 # Sub-tanda D: puente "lo que armaste = código real". %s = nombre del track (C / C#).
-const TUTOR_CODIGO_GANAR := "¡Lo resolviste! Esto que armaste, en %s real se ve así 👇  Ya es código que compila."
+const TUTOR_CODIGO_GANAR := "¡Lo resolviste! Esto que armaste, en %s real se ve así ↓  Ya es código que compila."
 const TUTOR_PANEL_CODIGO := "Tu programa, traducido a %s real — comentado, como lo escribirías de verdad."
 var tutor_capa: Control                  # overlay propio (no se encima con tutorial_capa/spotlight)
 var _tutorbot: Robot                     # robot que se asoma (reusa robot.gd)
@@ -200,7 +200,7 @@ var _tutor_tween: Tween
 var _tutor_origen := Vector2.ZERO        # posición del robot real (para volver)
 var _gano_pendiente := false             # al cerrar el banner: mostrar el código traducido + el robot
 var _codigo_modo_ganar := false          # el panel de código está en modo "al ganar" (Seguir/Siguiente)
-var _codigo_x: Button                    # ✕ del panel (se oculta en modo ganar)
+var _codigo_x: Button                    # × del panel (se oculta en modo ganar)
 var _codigo_footer: HBoxContainer        # footer del panel en modo ganar (Seguir / Siguiente nivel)
 
 # --- Humor (presentación pura): saludos contextuales, comentarios al ganar, gato, idle ---
@@ -243,10 +243,17 @@ func _ready() -> void:
 	# que cualquier _construir_* hornee colores en los widgets.
 	Tema.aplicar(_tema_guardado())
 	_sincronizar_colores()
+	# Fallback embebido para símbolos: en el export WEB las fuentes del sistema no están,
+	# y la fuente por defecto de Godot no trae flechas/geométricos (◀ ▶ ✓ ● ◎ → …), que
+	# salían como cuadrados rotos. Cascadia (OFL) los cubre y se usa solo para los glifos
+	# que la fuente primaria no tiene (el texto Latin sigue en la primaria). Issue #web.
+	var _fb_simbolos := load("res://assets/fallback_simbolos.ttf")
 	fuente_mono = SystemFont.new()
 	fuente_mono.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "JetBrains Mono", "DejaVu Sans Mono", "monospace"])
+	fuente_mono.fallbacks = [_fb_simbolos]
 	fuente_sans = SystemFont.new()
 	fuente_sans.font_names = PackedStringArray(["Segoe UI", "Inter", "Helvetica Neue", "Arial", "sans-serif"])
+	fuente_sans.fallbacks = [_fb_simbolos]
 
 	sfx = Sfx.new()
 	add_child(sfx)
@@ -409,7 +416,7 @@ func _repintar_meta() -> void:
 	var mejor_txt := "tu mejor  ·  —"
 	if m != null:
 		mejor_txt = "tu mejor  ·  %d instrucciones · %d pasos" % [m.instrucciones, m.pasos]
-	meta_label.text = "🎯  %s        ★  %s" % [obj, mejor_txt]
+	meta_label.text = "◎  %s        ◆  %s" % [obj, mejor_txt]
 
 
 func _repintar_progreso() -> void:
@@ -650,17 +657,17 @@ func _construir_controles() -> Control:
 	boton_run.pressed.connect(_on_probar_pressed)
 	fila.add_child(boton_run)
 
-	var b_reset := _boton_accion("↺ Reiniciar", false)
+	var b_reset := _boton_accion("Reiniciar", false)
 	b_reset.pressed.connect(_on_reset_pressed)
 	fila.add_child(b_reset)
 
 	# Lamparita de Ayuda: recién acá aparece «Paso», para no invitar a saltear pasos sin entender.
-	boton_ayuda = _boton_accion("💡 Ayuda", false)
+	boton_ayuda = _boton_accion("Ayuda", false)
 	boton_ayuda.tooltip_text = "¿Trabado? Mostrá «Paso» para ejecutar de a una instrucción."
 	boton_ayuda.pressed.connect(_toggle_ayuda)
 	fila.add_child(boton_ayuda)
 
-	boton_step = _boton_accion("⏯ Paso", false)
+	boton_step = _boton_accion("▶ Paso", false)
 	boton_step.tooltip_text = "Ejecutá una instrucción por vez."
 	boton_step.visible = false                # oculto hasta tocar Ayuda
 	boton_step.pressed.connect(_on_step_pressed)
@@ -795,7 +802,7 @@ func _construir_inicio() -> void:
 
 # Etiqueta del toggle de sonido (pie de la pantalla de inicio). Mute = todo el audio.
 func _texto_sonido() -> String:
-	return "🔇 Sonido: no" if (sfx and sfx.silenciado) else "🔊 Sonido: sí"
+	return "Sonido: no" if (sfx and sfx.silenciado) else "Sonido: sí"
 
 
 func _mostrar_inicio() -> void:
@@ -967,7 +974,7 @@ func _abrir_config() -> void:
 	var titulo := _etiqueta("Configuración", 22, COL_TEXTO)
 	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(titulo)
-	var x := _boton_link("✕")
+	var x := _boton_link("×")
 	x.add_theme_font_size_override("font_size", 18)
 	x.pressed.connect(capa.queue_free)
 	head.add_child(x)
@@ -1089,7 +1096,7 @@ func _construir_csharp() -> void:
 	csharp_titulo.add_theme_color_override("font_color", COL_TEXTO)
 	csharp_titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hrow.add_child(csharp_titulo)
-	_codigo_x = _boton_accion("✕", false)
+	_codigo_x = _boton_accion("×", false)
 	_codigo_x.custom_minimum_size = Vector2(40, 36)
 	_codigo_x.pressed.connect(_cerrar_csharp)
 	hrow.add_child(_codigo_x)
@@ -1136,7 +1143,7 @@ func _toggle_csharp() -> void:
 		_cerrar_csharp()
 		return
 	_codigo_modo_ganar = false
-	_aplicar_modo_codigo()                # modo normal: ✕ visible, footer oculto, título base
+	_aplicar_modo_codigo()                # modo normal: × visible, footer oculto, título base
 	# El generador y el título dependen del track.
 	csharp_texto.text = (Cc.generar(programa_modelo()) if track == "c" else Csharp.generar(programa_modelo()))
 	csharp_capa.visible = true
@@ -1566,7 +1573,7 @@ func _construir_fila(i: int, labels: Array) -> Control:
 	var dn := _boton_mini("▼")
 	dn.pressed.connect(func(): mover_linea(i, 1))
 	fila.add_child(dn)
-	var del := _boton_mini("✕")
+	var del := _boton_mini("×")
 	del.pressed.connect(func(): borrar_linea(i))
 	fila.add_child(del)
 
@@ -1586,7 +1593,7 @@ func _dropdown_destino(i: int, arg, labels: Array) -> OptionButton:
 		if arg == nombre:
 			sel = ob.get_item_count() - 1
 	if typeof(arg) == TYPE_STRING and not labels.has(arg):
-		ob.add_item("⚠ %s" % arg)
+		ob.add_item("! %s" % arg)
 		ob.set_item_metadata(ob.get_item_count() - 1, arg)
 		sel = ob.get_item_count() - 1
 	ob.select(sel)
@@ -1663,7 +1670,7 @@ func _on_validar_pressed() -> void:
 	var r := Validador.validar(nivel, programa)
 	if r.motivo != "":
 		# Rechazo estructural: mensaje humano, en clave de tipos/IDE, con pista.
-		validacion_label.text = "✗  %s" % _humanizar_motivo(r.motivo)
+		validacion_label.text = "×  %s" % _humanizar_motivo(r.motivo)
 		validacion_label.add_theme_color_override("font_color", COL_ERROR)
 		if robot:
 			robot.set_mood("animo")
@@ -1683,9 +1690,9 @@ func _on_validar_pressed() -> void:
 		_repintar_meta()
 		var extra := ""
 		if es_record:
-			extra += "    🎉 ¡nuevo récord!"
+			extra += "    ◉ ¡nuevo récord!"
 		elif es_par:
-			extra += "    ★ ¡objetivo!"
+			extra += "    ◆ ¡objetivo!"
 		validacion_label.text = "✓ ¡PASÓ!  ·  %s%s" % [sc, extra]
 		validacion_label.add_theme_color_override("font_color", COL_OK)
 		if robot:
@@ -1701,7 +1708,7 @@ func _on_validar_pressed() -> void:
 		# Issue #1: el avance ya NO viaja con el chiste. Al cerrar el banner, _descartar_banner
 		# ofrece el avance SIEMPRE (con un chiste ocasional encima); ver _ofrecer_avance_al_ganar.
 	else:
-		validacion_label.text = "✗  %s" % _mensaje_falla(r)
+		validacion_label.text = "×  %s" % _mensaje_falla(r)
 		validacion_label.add_theme_color_override("font_color", COL_ERROR)
 		if robot:
 			robot.set_mood("animo")
@@ -1729,7 +1736,7 @@ func _paso() -> void:
 # Corrida terminada: acá disparamos lo que depende de "ya viste correr el programa".
 func _al_terminar_corrida() -> void:
 	# Issue #2(a): en el paso "run" del tutorial, la corrida FRENA y se ve el estado final
-	# LIMPIO (sin el "✗" de validar). Detectamos ese paso antes de avanzarlo.
+	# LIMPIO (sin el "×" de validar). Detectamos ese paso antes de avanzarlo.
 	var en_tuto_run: bool = not _tuto_pasos.is_empty() and _tuto_i < _tuto_pasos.size() \
 		and tutorial_capa != null and tutorial_capa.visible \
 		and _tuto_pasos[_tuto_i].get("espera", "") == "run"
@@ -1750,7 +1757,7 @@ func _correr() -> void:
 	if estado.terminado:
 		return
 	corriendo = true
-	boton_run.text = "⏸ Pausa"
+	boton_run.text = "▮▮ Pausa"
 	if robot:
 		robot.set_mood("pensando")
 	timer.start()
@@ -1992,7 +1999,7 @@ func _brillo(celda: Panel, dur: float) -> void:
 
 # Celebracion al pasar: banner PROLIJO en espacio libre (sobre el escenario), no
 # tapa el programa ni es sobredimensionado. Trae onda suave LOCALIZADA + conteo de
-# puntaje + ★/récord, y es descartable (click) ademas de auto-desvanecerse.
+# puntaje + ◆/récord, y es descartable (click) ademas de auto-desvanecerse.
 func _celebrar(score_instr: int, score_pasos: int, es_par: bool, es_record: bool) -> void:
 	if capa_anim == null or capa_anim.get_global_rect().size == Vector2.ZERO:
 		return
@@ -2034,7 +2041,7 @@ func _celebrar(score_instr: int, score_pasos: int, es_par: bool, es_record: bool
 	titular.add_theme_font_size_override("font_size", 22)
 	titular.add_theme_color_override("font_color", COL_ACENTO)
 	titular.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	titular.text = "🎉 ¡Nuevo récord!" if es_record else ("★ ¡Objetivo!" if es_par else "✓ ¡Pasó!")
+	titular.text = "◉ ¡Nuevo récord!" if es_record else ("◆ ¡Objetivo!" if es_par else "✓ ¡Pasó!")
 	bv.add_child(titular)
 
 	var sub := Label.new()
@@ -2124,7 +2131,7 @@ func _mensaje_falla(r) -> String:
 			var n: int = min(esperada.size(), obtenida.size())
 			for k in n:
 				if esperada[k] != obtenida[k]:
-					return "Casi 👀  con %s: en el %s lugar iba %s y saliste %s. Revisá el orden en que guardás/recuperás de memoria." % [
+					return "Casi…  con %s: en el %s lugar iba %s y saliste %s. Revisá el orden en que guardás/recuperás de memoria." % [
 						str(d.entrada), _ordinal(k + 1), _str_valor(esperada[k]), _str_valor(obtenida[k])]
 			# Mismo prefijo, distinta cantidad.
 			if obtenida.size() < esperada.size():
@@ -2862,8 +2869,8 @@ func _nombre_track() -> String:
 	return "C" if track == "c" else "C#"
 
 
-# Ajusta el panel de código según el modo: normal (✕, título base) vs "al ganar"
-# (sin ✕, footer Seguir/Siguiente, título festejo). No toca la traducción.
+# Ajusta el panel de código según el modo: normal (×, título base) vs "al ganar"
+# (sin ×, footer Seguir/Siguiente, título festejo). No toca la traducción.
 func _aplicar_modo_codigo() -> void:
 	var base := "Tu solución en C" if track == "c" else "Tu solución en C#"
 	if csharp_titulo:

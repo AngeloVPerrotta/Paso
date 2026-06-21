@@ -20,7 +20,7 @@ const URL_DESCARGA = "/descargas/paso.exe";
 // ║  El build web (public/juego/) y la página /jugar (jugar.astro) siguen  ║
 // ║  intactos: NO se borró nada, solo se oculta el botón y su copy.        ║
 // ╚══════════════════════════════════════════════════════════════════════╝
-const MOSTRAR_JUGAR_WEB = false;
+const MOSTRAR_JUGAR_WEB = true;
 
 const REPO = "https://github.com/AngeloVPerrotta/Paso";
 const PORTFOLIO = "https://angeloperrotta.online";
@@ -50,12 +50,12 @@ const bullets = [
       <h1>Paso</h1>
       <p class="hero__tagline">Aprendé a programar jugando: armás la solución pieza por pieza y un robot la ejecuta.</p>
       <div class="cta-fila">
+        <Boton href={URL_DESCARGA} variant="primary" label="⬇  Descargar para Windows" />
         {MOSTRAR_JUGAR_WEB && (
-          <Boton href={URL_JUGAR} variant="primary" label="▶  Jugar en el navegador" />
+          <Boton href={URL_JUGAR} variant="secondary" label="▶  Jugar en el navegador" />
         )}
-        <Boton href={URL_DESCARGA} variant={MOSTRAR_JUGAR_WEB ? "secondary" : "primary"} label="⬇  Descargar para Windows" />
       </div>
-      <p class="cta-micro">{MOSTRAR_JUGAR_WEB ? "Gratis y sin registro · probás en el navegador, sin instalar nada." : "Gratis y sin registro · descargá el .exe para Windows."}</p>
+      <p class="cta-micro">{MOSTRAR_JUGAR_WEB ? "Gratis y sin registro · descargá el .exe, o probalo directo en el navegador." : "Gratis y sin registro · descargá el .exe para Windows."}</p>
     </div>
   </header>
 
@@ -106,12 +106,12 @@ const bullets = [
   <!-- ── CTA FINAL ────────────────────────────────────────────────────── -->
   <section class="centro" data-reveal>
     <div class="container">
-      <h2>{MOSTRAR_JUGAR_WEB ? "Probá un nivel ahora. Se juega en el navegador, gratis." : "Descargalo y probá un nivel ahora. Gratis."}</h2>
+      <h2>{MOSTRAR_JUGAR_WEB ? "Descargalo y probá un nivel ahora —  o jugá directo en el navegador. Gratis." : "Descargalo y probá un nivel ahora. Gratis."}</h2>
       <div class="cta-fila">
+        <Boton href={URL_DESCARGA} variant="primary" label="⬇  Descargar para Windows" />
         {MOSTRAR_JUGAR_WEB && (
-          <Boton href={URL_JUGAR} variant="primary" label="▶  Jugar en el navegador" />
+          <Boton href={URL_JUGAR} variant="secondary" label="▶  Jugar en el navegador" />
         )}
-        <Boton href={URL_DESCARGA} variant={MOSTRAR_JUGAR_WEB ? "secondary" : "primary"} label="⬇  Descargar para Windows" />
       </div>
     </div>
   </section>

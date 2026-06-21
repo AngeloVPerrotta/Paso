@@ -60,10 +60,13 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
 
+	var _fb_simbolos := load("res://assets/fallback_simbolos.ttf")   # símbolos en web (ver main.gd)
 	_mono = SystemFont.new()
 	_mono.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "JetBrains Mono", "DejaVu Sans Mono", "monospace"])
+	_mono.fallbacks = [_fb_simbolos]
 	_sans = SystemFont.new()
 	_sans.font_names = PackedStringArray(["Segoe UI", "Inter", "Helvetica Neue", "Arial", "sans-serif"])
+	_sans.fallbacks = [_fb_simbolos]
 
 	var fondo := ColorRect.new()
 	fondo.color = Tema.FONDO
@@ -153,8 +156,8 @@ func _ready() -> void:
 	_guia.add_child(_bocadillo)
 	add_child(_guia)
 
-	# ✕ cerrar: lo último, siempre clickeable arriba a la derecha.
-	var cerrar := _boton("✕", false)
+	# × cerrar: lo último, siempre clickeable arriba a la derecha.
+	var cerrar := _boton("×", false)
 	cerrar.set_anchor(SIDE_LEFT, 1.0)
 	cerrar.set_anchor(SIDE_RIGHT, 1.0)
 	cerrar.offset_left = -58

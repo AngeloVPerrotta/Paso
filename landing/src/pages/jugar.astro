@@ -29,22 +29,42 @@ import Base from "../layouts/Base.astro";
   </div>
 
   <style>
-    .jugar { display: flex; flex-direction: column; min-height: 100svh; }
+    .jugar { display: flex; flex-direction: column; height: 100svh; }
     .jugar__bar {
       display: flex; align-items: center; justify-content: space-between;
       gap: 1rem; padding: 0.7rem clamp(16px, 4vw, 32px);
       border-bottom: 1px solid var(--panel-borde); background: var(--panel);
+      flex: 0 0 auto;
     }
     .jugar__logo { font-family: var(--serif); font-weight: 600; font-size: 1.3rem; }
     .jugar__volver, .jugar__exe { color: var(--teal); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
     .jugar__volver:hover, .jugar__exe:hover { color: var(--teal-oscuro); }
-    .jugar__marco { position: relative; flex: 1; display: grid; place-items: center; }
-    .jugar__juego { width: 100%; height: 100%; border: 0; display: block; position: absolute; inset: 0; }
-    .jugar__fallback {
-      max-width: 38ch; text-align: center; color: var(--tenue);
-      font-size: 0.95rem; padding: 2rem; pointer-events: auto;
+
+    /* El juego corre a tamaño fijo (relación 1000:900, igual que la ventana de escritorio),
+       CENTRADO, con barras de letterbox a los lados/arriba si sobra espacio. El marco es un
+       container de tamaño: el iframe se calcula con cqw/cqh para que entre entero sin estirarse. */
+    .jugar__marco {
+      position: relative; flex: 1 1 auto; min-height: 0;
+      display: grid; place-items: center;
+      container-type: size;
+      background: #232220;                 /* letterbox: marco oscuro tipo "ventana sobre escritorio" */
+      overflow: hidden;
     }
-    /* El iframe tapa el fallback cuando hay juego; si el src 404ea, queda visible debajo. */
-    .jugar__juego { background: transparent; }
+    .jugar__juego {
+      aspect-ratio: 1000 / 900;            /* la del juego de escritorio: NO se estira */
+      width: min(100cqw, 100cqh * 1000 / 900);
+      height: auto;
+      max-width: 100%; max-height: 100%;
+      border: 0; display: block;
+      background: transparent;             /* si el src 404ea se ve el fallback de atrás */
+      box-shadow: var(--sombra-tarjeta);
+      position: relative; z-index: 1;
+    }
+    .jugar__fallback {
+      position: absolute; inset: 0; margin: auto; z-index: 0;
+      max-width: 38ch; height: fit-content; text-align: center;
+      color: var(--fondo); font-size: 0.95rem; padding: 2rem;
+    }
+    .jugar__fallback a { color: var(--ambar); }
   </style>
 </Base>
