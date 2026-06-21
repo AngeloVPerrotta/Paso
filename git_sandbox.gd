@@ -359,7 +359,7 @@ func _construir_nube() -> Control:
 # Consola
 # ---------------------------------------------------------------------------
 func _on_enter(texto: String) -> void:
-	var t := texto.strip_edges()
+	var t := _normalizar_nombre_archivo(texto.strip_edges())
 	_consola_in.clear()
 	if t == "":
 		return
@@ -378,6 +378,21 @@ func _on_enter(texto: String) -> void:
 	_refrescar()
 	_chequear_ejercicio()
 	_consola_in.grab_focus()
+
+
+# El modelo distingue mayúsculas en los nombres de archivo (README.md), así que escribir
+# «git add readme.md» fallaba y obligaba a tipear en mayúsculas. Acá, solo para el arg de
+# «git add <archivo>», reescribimos el nombre a su forma real si coincide sin importar el
+# case. Targeteado a `add` para no tocar mensajes de commit ni otros textos. No toca git_mini.
+func _normalizar_nombre_archivo(t: String) -> String:
+	var toks := t.split(" ", false)
+	if toks.size() == 3 and toks[0] == "git" and toks[1] == "add" and toks[2] != ".":
+		var arg: String = toks[2]
+		if not modelo.archivos.has(arg):
+			for nombre in modelo.archivos:
+				if nombre.to_lower() == arg.to_lower():
+					return "git add " + nombre
+	return t
 
 
 func _log_cmd(t: String) -> void:

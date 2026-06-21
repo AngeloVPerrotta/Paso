@@ -28,6 +28,8 @@ func _initialize() -> void:
 	await _shot_onboarding()
 	await _shot_operaciones()
 	await _shot_tracks()
+	await _shot_git_minuscula()
+	await _shot_persistencia()
 	await _shot_sandbox()
 	await _shot_ux()
 	await _shot_como()
@@ -322,6 +324,47 @@ func _shot_tracks() -> void:
 	await _esperar(10)
 	await _guardar("shot_track_csharp_limpio.png") # strip: nivel 1 SIN ✓ en C#
 	# No dejamos progreso de prueba persistido en el .cfg.
+	Puntajes.borrar_todo()
+	escena.resueltos.clear()
+	await _esperar(2)
+
+
+# Bug 2: el sandbox obligaba a tipear los nombres en mayúsculas (README.md). Ahora
+# «git add readme.md» (minúscula) también prepara el archivo, sin error.
+func _shot_git_minuscula() -> void:
+	var sgit = escena.git_sandbox
+	escena.inicio_capa.visible = false
+	sgit.abrir()
+	await _esperar(4)
+	sgit._on_enter("git init")
+	sgit._on_enter("git add readme.md")        # minúscula: antes daba "no existe el archivo"
+	await _esperar(6)
+	await _guardar("shot_git_minuscula.png")   # consola: prepara README.md, sin error rojo
+	sgit.cerrar_modulo()
+	await _esperar(2)
+
+
+# Bug 3: los ✓ de nivel completado no persistían (resueltos se escribía pero no se leía).
+# Ganamos el nivel 1 en C, y simulamos cerrar/reabrir vaciando el cache en memoria y
+# recargando del disco (lo mismo que hace el boot). El ✓ debe seguir ahí.
+func _shot_persistencia() -> void:
+	Puntajes.borrar_todo()
+	escena.resueltos.clear()
+	escena._elegir_track("c")
+	await _esperar(4)
+	escena._cargar_indice(0)                   # b1_eco
+	await _esperar(4)
+	escena.programa = Soluciones.para("b1_eco").duplicate(true)
+	escena._repintar_programa()
+	escena._reset_corrida()
+	escena._on_validar_pressed()
+	await _esperar(8)
+	# "Cerrar y reabrir": tiramos el cache en memoria y recargamos del .cfg.
+	escena.resueltos.clear()
+	escena._cargar_resueltos()
+	escena._cargar_indice(0)
+	await _esperar(8)
+	await _guardar("shot_persistencia.png")    # sesión "nueva": el ✓ del nivel 1 sigue
 	Puntajes.borrar_todo()
 	escena.resueltos.clear()
 	await _esperar(2)

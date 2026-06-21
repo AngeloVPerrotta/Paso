@@ -253,6 +253,7 @@ func _ready() -> void:
 
 	track = Puntajes.track()
 	orden = Niveles.orden_track(track)
+	_cargar_resueltos()                  # ✓ de nivel completado: persisten entre sesiones
 	_construir_ui()
 	_construir_inicio()
 	git_capa = GitExplica.new()          # "Aprendé Git" Capa 1 (oculto hasta abrir)
@@ -363,6 +364,15 @@ func _boton_paleta(op: String) -> Control:
 	if idx >= 0 and idx < paleta_box.get_child_count():
 		return paleta_box.get_child(idx)
 	return null
+
+
+# Siembra `resueltos` desde el disco al iniciar (los ✓ de nivel completado). Antes el
+# diccionario solo se ESCRIBÍA al ganar en la sesión y nunca se leía, así que los ✓
+# desaparecían al reabrir el juego (solo persistía "tu mejor"). Las claves guardadas ya
+# vienen como c:<id> / csharp:<id>, así que el namespacing por track se respeta solo.
+func _cargar_resueltos() -> void:
+	for clave in Puntajes.resueltos_guardados():
+		resueltos[str(clave)] = true
 
 
 # Clave de progreso de un nivel, namespaced por TRACK. Los tracks C y C# comparten

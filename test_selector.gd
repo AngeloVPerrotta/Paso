@@ -6,6 +6,7 @@ extends SceneTree
 #   godot --headless --script test_selector.gd
 
 func _initialize() -> void:
+	Puntajes.borrar_todo()           # estado limpio: el boot ahora SIEMBRA resueltos del disco
 	Puntajes.set_track("c")          # determinista: el track C son los 12 niveles base
 	var escena = load("res://main.tscn").instantiate()
 	get_root().add_child(escena)
@@ -60,6 +61,13 @@ func _initialize() -> void:
 	assert(escena.validacion_label.text.contains("PASÓ"), "deberia mostrar PASÓ")
 	# El track C# NO debe verse afectado: el mismo id en el otro track tiene otra clave.
 	assert(not escena.resueltos.has("csharp:b1_eco"), "ganar en C no deberia marcar el nivel en C#")
+
+	# Persistencia entre sesiones: los ✓ se escribían pero no se leían del disco. Simulamos
+	# "cerrar y reabrir" vaciando el cache en memoria y recargando del .cfg (lo que hace el boot).
+	escena.resueltos.clear()
+	escena._cargar_resueltos()
+	assert(escena.resueltos.has(escena._clave("b1_eco")), "el ✓ deberia persistir al recargar del disco")
+	assert(not escena.resueltos.has("csharp:b1_eco"), "la persistencia debe respetar el track (no marcar C#)")
 
 	# Un nivel no resuelto no esta marcado.
 	assert(not escena.resueltos.has(escena._clave("pares_iguales")), "pares_iguales no deberia estar resuelto")

@@ -537,15 +537,17 @@ class Lienzo extends Control:
 			["git status", "ves qué cambió y qué está preparado"],
 			["git add", "elegís qué cambios querés guardar"],
 			["git commit", "guardás un avance en tu historial local"],
+			["git log", "ves el historial de commits que ya guardaste"],
 			["git push", "mandás tus commits a la nube"],
 			["git pull", "traés lo nuevo de la nube a tu PC"],
 			["git clone", "bajás un repo entero la primera vez"],
 		]
-		var y0 := 24.0
+		# Paso de fila ajustado para que las 8 filas entren en el alto del lienzo (320).
+		var y0 := 20.0
 		var x_cmd := size.x * 0.5 - 280.0
 		var x_desc := size.x * 0.5 - 70.0
 		for k in filas.size():
-			var y := y0 + k * 41.0
+			var y := y0 + k * 37.0
 			draw_string(mono, Vector2(x_cmd, y + 16), filas[k][0], HORIZONTAL_ALIGNMENT_LEFT, 200, 17, Tema.PRIMARIO)
 			draw_string(sans, Vector2(x_desc, y + 16), filas[k][1], HORIZONTAL_ALIGNMENT_LEFT, 360, 15, Tema.TEXTO)
 

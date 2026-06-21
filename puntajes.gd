@@ -51,6 +51,15 @@ static func _mejor_que(i1: int, p1: int, i2: int, p2: int) -> bool:
 	return p1 < p2
 
 
+# Claves de los niveles que tienen marca (= resueltos), para sembrar los ✓ al iniciar.
+# Vienen ya namespaced por track (c:<id> / csharp:<id>), tal cual las guarda registrar().
+static func resueltos_guardados() -> Array:
+	var cfg := _cargar()
+	if not cfg.has_section(SEC_MEJOR):
+		return []
+	return cfg.get_section_keys(SEC_MEJOR)
+
+
 # --- Flags de UI (p. ej. tutorial visto) ---
 static func flag(nombre: String, def := false) -> bool:
 	var cfg := _cargar()
