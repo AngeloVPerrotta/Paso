@@ -175,7 +175,10 @@ var _tuto_i := 0
 var _tuto_globo: PanelContainer
 var _tuto_txt: Label
 var _tuto_btn_sig: Button
+var _tuto_btn_accion: Button            # botón de acción opcional por paso (p.ej. "▶ Ver de nuevo")
+var _tuto_accion_cb := Callable()       # callback del botón de acción del paso actual
 var _tuto_marca_visto := true           # true: al terminar marca el nivel como "ya visto"
+var _tuto_mostrar_como := false         # true SOLO en la leyenda "¿Cómo se juega?": ofrece "Cómo funciona"
 
 
 # --- Robot-tutor: el robot se asoma a una esquina y comenta en momentos clave ---
@@ -219,7 +222,6 @@ const CHISTE_PROB := 0.5                 # prob. de soltar un comentario al gana
 const IDLE_SEG := 45.0                   # segundos quieto antes de que el robot cabecee
 var _inicio_saludo: Label                # línea de saludo contextual en la pantalla de inicio
 var _ultimo_saludo := ""                 # para no repetir el saludo dos veces seguidas
-var _chiste_pendiente := false           # al cerrar el banner: soltar un comentario seco
 var _chistes_baraja: Array = []          # cola barajada de índices (rotación SIN repetir hasta agotar)
 var _idle_t := 0.0                       # segundos sin input del jugador
 var _dormido := false                    # el robot del juego está cabeceando
@@ -1098,7 +1100,8 @@ func _construir_como_funciona() -> void:
 	v.add_child(trow)
 
 	var sub := Label.new()
-	sub.text = "Mirá al robot resolver un ejemplo chiquito. Una cosa a la vez."
+	# Issue #5: enmarcado como REPASO opcional (la puerta de entrada es jugar el nivel 1).
+	sub.text = "Un repaso de las piezas de la máquina, por si querés volver a verlas.\nMirá al robot resolver un ejemplo chiquito, una cosa a la vez."
 	sub.add_theme_font_override("font", fuente_sans)
 	sub.add_theme_font_size_override("font_size", 16)
 	sub.add_theme_color_override("font_color", COL_TENUE)
@@ -1574,9 +1577,8 @@ func _on_validar_pressed() -> void:
 		_celebrar(r.score.instrucciones, r.score.pasos, es_par, es_record)
 		# Ajuste D: el código-al-ganar solo las PRIMERAS 3 victorias; de ahí en más, banner solo.
 		_gano_pendiente = _puede_tutorial() and _veces_cod_ganar() < 3
-		# Humor: a veces un comentario seco al ganar, SOLO cuando no se muestra el código
-		# (nunca dos cosas hablando) y con probabilidad (no en cada nivel, para no cansar).
-		_chiste_pendiente = (not _gano_pendiente) and _puede_tutorial() and randf() < CHISTE_PROB
+		# Issue #1: el avance ya NO viaja con el chiste. Al cerrar el banner, _descartar_banner
+		# ofrece el avance SIEMPRE (con un chiste ocasional encima); ver _ofrecer_avance_al_ganar.
 	else:
 		validacion_label.text = "✗  %s" % _mensaje_falla(r)
 		validacion_label.add_theme_color_override("font_color", COL_ERROR)
@@ -1605,10 +1607,22 @@ func _paso() -> void:
 
 # Corrida terminada: acá disparamos lo que depende de "ya viste correr el programa".
 func _al_terminar_corrida() -> void:
+	# Issue #2(a): en el paso "run" del tutorial, la corrida FRENA y se ve el estado final
+	# LIMPIO (sin el "✗" de validar). Detectamos ese paso antes de avanzarlo.
+	var en_tuto_run: bool = not _tuto_pasos.is_empty() and _tuto_i < _tuto_pasos.size() \
+		and tutorial_capa != null and tutorial_capa.visible \
+		and _tuto_pasos[_tuto_i].get("espera", "") == "run"
 	_tutorial_evento("run")                  # #3: el "¿viste el viaje?" avanza al TERMINAR (no al arrancar)
 	if _corrida_auto:                        # #8: el botón unificado valida tras la corrida
 		_corrida_auto = false
-		_on_validar_pressed()
+		if not en_tuto_run:                  # durante el tutorial NO validamos: dejamos ver el estado final
+			_on_validar_pressed()
+
+
+# Issue #2(c): repetir la corrida del tutorial sin validar (botón "▶ Ver de nuevo").
+func _tutorial_ver_de_nuevo() -> void:
+	_reset_corrida()                         # vuelve al estado inicial (no toca el programa)
+	_correr()                                # corre la animación; al terminar no valida (no es _corrida_auto)
 
 
 func _correr() -> void:
@@ -1955,9 +1969,11 @@ func _descartar_banner(banner: Control) -> void:
 	if _gano_pendiente:
 		_gano_pendiente = false
 		t.tween_callback(_mostrar_codigo_al_ganar)
-	elif _chiste_pendiente:
-		_chiste_pendiente = false
-		t.tween_callback(_comentario_ganar_random)
+	else:
+		# Issue #1: el banner SIEMPRE nace de una victoria → ofrecer avance siempre que no
+		# se muestre el código (que trae su propio "Siguiente nivel"). Antes acá solo caía
+		# el chiste ocasional y, pasadas 3 victorias, el jugador quedaba sin forma de avanzar.
+		t.tween_callback(_ofrecer_avance_al_ganar)
 
 
 # ---------------------------------------------------------------------------
@@ -2047,6 +2063,7 @@ func _quizas_tutorial() -> void:
 	_tuto_pasos = _pasos_tutorial(nivel.id)
 	_tuto_i = 0
 	_tuto_marca_visto = true                     # primera vez: al terminar, marcar visto
+	_tuto_mostrar_como = false                   # el tutorial ES la puerta de entrada; no ofrece el repaso
 	call_deferred("_tutorial_arrancar")
 
 
@@ -2059,6 +2076,7 @@ func _abrir_ayuda() -> void:
 	_tuto_pasos = _pasos_legenda()
 	_tuto_i = 0
 	_tuto_marca_visto = false
+	_tuto_mostrar_como = true                     # repaso: acá SÍ ofrecemos "Cómo funciona la máquina"
 	call_deferred("_tutorial_arrancar")
 
 
@@ -2099,6 +2117,7 @@ func _quizas_primeras_veces() -> void:
 	_tuto_pasos = [pasos[0]]
 	_tuto_i = 0
 	_tuto_marca_visto = false                    # no marca tuto_<id>; cada paso marca su propio flag pv_*
+	_tuto_mostrar_como = false                   # onboarding 1-zona: sin "Cómo funciona" (evita amontonar)
 	call_deferred("_tutorial_arrancar")
 
 
@@ -2114,22 +2133,29 @@ func _pasos_tutorial(id: String) -> Array:
 			{"texto": "Pista: para invertir, guardá el primero, sacá el segundo y recién ahí soltá el guardado.",
 				"objetivo": func(): return programa_vbox},
 		]
-	# Nivel 1 (b1_eco u otro): tutorial DE LA MANO, lo hacés vos.
+	# Nivel 1 (b1_eco u otro): tutorial DE LA MANO, lo hacés vos. Es la PUERTA DE ENTRADA
+	# (Issue #5): presenta cada pieza A MEDIDA que se usa, con contexto y el objetivo del juego.
 	# (En cada dict, la lambda `objetivo` va ÚLTIMA: un lambda de una línea seguido
 	#  de otra clave confunde al parser.)
 	return [
-		{"texto": "¡Hola! Te enseño a jugar y lo hacés vos. Tocá « Siguiente ».",
+		{"texto": "¡Hola! Soy tu robot: vos me das órdenes y yo las ejecuto. Tu objetivo en cada nivel: que lo que SALE coincida con lo pedido. Te lo enseño jugando. Tocá « Siguiente ».",
 			"objetivo": func(): return null},
-		{"texto": "Mirá: « entran » tres números. Hay que sacarlos en orden, sin cambiarlos.",
+		{"texto": "« Entran »: la fila de números que llegan, en orden. Acá entran tres y hay que sacarlos tal cual.",
 			"objetivo": func(): return entrada_box},
-		{"texto": "Probá vos: tocá « agarrá » para tomar el primero y dejarlo en la mano.",
+		{"texto": "Probá vos: tocá « agarrá » para tomar el primero. Queda « en la mano »: lo único que sostengo, de a uno por vez.",
 			"espera": "op:TOMAR", "objetivo": func(): return _boton_paleta("TOMAR")},
-		{"texto": "¡Bien! Ahora tocá « soltá » para mandarlo a « salen ».",
+		{"texto": "¡Bien! Ahora tocá « soltá »: lo que tengo en la mano pasa a « salen », la fila de resultados.",
 			"espera": "op:SOLTAR", "objetivo": func(): return _boton_paleta("SOLTAR")},
-		{"texto": "Ya tenés dos pasos de programa. Tocá « ▶ Correr » y mirá al robot.",
+		{"texto": "Ya armaste dos órdenes: ese es tu programa. Tocá « ▶ Probar » y mirame ejecutarlo.",
 			"espera": "run", "objetivo": func(): return boton_run},
-		{"texto": "¿Viste el viaje entrada → mano → salida? Repetí agarrá/soltá hasta vaciar la entrada y tocá « ✓ Validar ». ¡A jugar!",
-			"sin_velo": true, "objetivo": func(): return null},
+		# Issue #2: la corrida ya frenó y se ve el estado final; recién acá el mensaje, con
+		# botón para repetirla si no se vio.
+		{"texto": "Eso que viste es tu programa ejecutándose, paso a paso.",
+			"sin_velo": true, "accion": {"label": "▶ Ver de nuevo", "cb": Callable(self, "_tutorial_ver_de_nuevo")},
+			"objetivo": func(): return null},
+		# Issue #2(d): al cerrar, foco en la consigna del nivel (mismo spotlight del onboarding).
+		{"texto": "Esta es la consigna del nivel: lo que hay que lograr. Repetí agarrá/soltá hasta vaciar la entrada y tocá « ▶ Probar ». ¡A jugar!",
+			"objetivo": func(): return desc_label},
 	]
 
 
@@ -2198,13 +2224,19 @@ func _tutorial_arrancar() -> void:
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fila.add_child(sp)
+	# Botón de acción opcional por paso (p.ej. "▶ Ver de nuevo"): oculto salvo que el paso lo pida.
+	_tuto_btn_accion = _boton_accion("", false)
+	_tuto_btn_accion.visible = false
+	_tuto_btn_accion.pressed.connect(func(): if _tuto_accion_cb.is_valid(): _tuto_accion_cb.call())
+	fila.add_child(_tuto_btn_accion)
 	_tuto_btn_sig = _boton_accion("Siguiente ▸", true)
 	_tuto_btn_sig.pressed.connect(_tutorial_siguiente)
 	fila.add_child(_tuto_btn_sig)
 	gv.add_child(fila)
 
-	# En la leyenda repasable (no la 1ª vez), un acceso al demo conceptual.
-	if not _tuto_marca_visto:
+	# Solo en la leyenda repasable "¿Cómo se juega?": acceso al repaso conceptual. (El onboarding
+	# de zonas y el tutorial guiado NO lo muestran, para no amontonar — Issue #5.)
+	if _tuto_mostrar_como:
 		var b_maq := _boton_accion("Cómo funciona la máquina ▸", false)
 		b_maq.pressed.connect(_abrir_como_funciona)   # _abrir_como_funciona cierra el tutorial
 		gv.add_child(b_maq)
@@ -2236,6 +2268,16 @@ func _tutorial_mostrar_paso() -> void:
 		# En pasos interactivos avanza la ACCIÓN del jugador, no el botón.
 		_tuto_btn_sig.visible = (espera == "")
 		_tuto_btn_sig.text = "¡Dale! ✓" if _tuto_i == _tuto_pasos.size() - 1 else "Siguiente ▸"
+	# Botón de acción opcional del paso (p.ej. "▶ Ver de nuevo" para repetir la corrida).
+	if _tuto_btn_accion:
+		var acc = paso.get("accion", null)
+		if acc != null:
+			_tuto_btn_accion.text = acc.get("label", "")
+			_tuto_accion_cb = acc.get("cb", Callable())
+			_tuto_btn_accion.visible = true
+		else:
+			_tuto_accion_cb = Callable()
+			_tuto_btn_accion.visible = false
 
 	# Apuntar el spotlight al objetivo (o sin foco si null/rect sin resolver).
 	var objetivo_node = paso.objetivo.call()
@@ -2243,6 +2285,7 @@ func _tutorial_mostrar_paso() -> void:
 	if objetivo_node is Control:
 		rect = objetivo_node.get_global_rect()
 	if _spotlight:
+		# Set inmediato (best-effort) para no parpadear; se RECALCULA tras el layout abajo.
 		_spotlight.objetivo = rect.grow(8.0) if rect.size != Vector2.ZERO else Rect2()
 		_spotlight.permitir_hueco = (espera != "")   # interactivo: el clic pasa al objetivo
 		_spotlight.mostrar_velo = not sin_velo        # último paso: sin velo, mirás el juego
@@ -2256,6 +2299,14 @@ func _tutorial_mostrar_paso() -> void:
 		# El tutorial pudo cerrarse (navegacion/skip) mientras esperabamos.
 		if not is_instance_valid(globo) or not tutorial_capa.visible:
 			return
+		# #3/#4: RECALCULAR el rect del objetivo YA con el layout asentado. Tomado antes del
+		# await (nivel recién cargado → memoria/salida recién reconstruidas) venía stale y el
+		# foco aparecía DESFASADO de la celda. Refrescamos spotlight y reposicionamos el globo.
+		if is_instance_valid(objetivo_node) and objetivo_node is Control:
+			rect = (objetivo_node as Control).get_global_rect()
+			if _spotlight:
+				_spotlight.objetivo = rect.grow(8.0) if rect.size != Vector2.ZERO else Rect2()
+				_spotlight.queue_redraw()
 		var gs: Vector2 = globo.size
 		var pos: Vector2
 		if rect.size != Vector2.ZERO:
@@ -2321,7 +2372,7 @@ func _tutor_libre() -> bool:
 
 
 # Muestra un comentario. Devuelve true si efectivamente se mostró (para marcar el flag).
-func _robot_comenta(texto: String, animo: String, con_boton := true) -> bool:
+func _robot_comenta(texto: String, animo: String, con_boton := true, accion_texto := "", accion_cb := Callable()) -> bool:
 	if not _tutor_libre() or robot == null:
 		return false
 	_tutor_activo = true
@@ -2366,9 +2417,18 @@ func _robot_comenta(texto: String, animo: String, con_boton := true) -> bool:
 		var sp := Control.new()
 		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		fila.add_child(sp)
-		var ok := _boton_accion("dale ✓", true)
-		ok.pressed.connect(_cerrar_comentario)
-		fila.add_child(ok)
+		if accion_texto != "":
+			# Botón de acción (p.ej. "Siguiente nivel ▸"): cierra la burbuja y dispara el callback.
+			var act := _boton_accion(accion_texto, true)
+			act.pressed.connect(func():
+				_cerrar_comentario()
+				if accion_cb.is_valid():
+					accion_cb.call())
+			fila.add_child(act)
+		else:
+			var ok := _boton_accion("dale ✓", true)
+			ok.pressed.connect(_cerrar_comentario)
+			fila.add_child(ok)
 		bv.add_child(fila)
 	_tutor_burbuja.modulate.a = 0.0
 	tutor_capa.add_child(_tutor_burbuja)
@@ -2501,14 +2561,37 @@ func _saludo_contextual() -> String:
 
 # Comentario seco al ganar (rotación SIN repetir hasta agotar el pool). Reusa el robot+
 # burbuja del tutor; _robot_comenta ya garantiza "nunca dos cosas hablando a la vez".
-func _comentario_ganar_random() -> void:
+func _chiste_random() -> String:
 	if CHISTES_GANAR.is_empty():
-		return
+		return ""
 	if _chistes_baraja.is_empty():
 		_chistes_baraja = range(CHISTES_GANAR.size())
 		_chistes_baraja.shuffle()
 	var i: int = _chistes_baraja.pop_back()
-	_robot_comenta(CHISTES_GANAR[i], "feliz")
+	return CHISTES_GANAR[i]
+
+
+func _comentario_ganar_random() -> void:
+	var c := _chiste_random()
+	if c != "":
+		_robot_comenta(c, "feliz")
+
+
+# Issue #1 — AVANCE al ganar, SEPARADO del gate de código. La celebración (banner) y el
+# código-al-ganar (solo las 3 primeras veces) ya no son el único camino para avanzar:
+# tras cerrar el banner, si hay un próximo nivel el robot lo ofrece SIEMPRE con un botón
+# (a veces con un comentario seco encima). En el último nivel no hay a dónde ir: cae al
+# comentario ocasional. (El código-al-ganar mantiene su propio "Siguiente nivel" en el footer.)
+func _ofrecer_avance_al_ganar() -> void:
+	if nivel_idx < orden.size() - 1:
+		var txt := "¡Listo! ¿Vamos al que sigue?"
+		if randf() < CHISTE_PROB:
+			var c := _chiste_random()
+			if c != "":
+				txt = c
+		_robot_comenta(txt, "feliz", true, "Siguiente nivel ▸", Callable(self, "_on_next"))
+	elif randf() < CHISTE_PROB:
+		_comentario_ganar_random()
 
 
 # Ajuste D: cuántas veces ya se mostró el código-al-ganar (tope 3). Vive en el .cfg de

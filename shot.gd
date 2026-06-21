@@ -30,7 +30,9 @@ func _initialize() -> void:
 	await _shot_ux()
 	await _shot_como()
 	await _shot_tutorial()
+	await _shot_tutorial_fixes()
 	await _shot_corrida_y_win()
+	await _shot_avance()
 	await _shot_codigo("c", "invertir_trio", "shot_c.png")
 	await _shot_codigo("csharp", "invertir_cuarteto", "shot_csharp.png")
 
@@ -164,6 +166,48 @@ func _shot_tutorial() -> void:
 	await _esperar(2)
 
 
+# Issue #2: pasos NUEVOS del tutorial nivel 1 — "tu programa ejecutándose" (con "Ver de
+# nuevo") y el FOCO final en la consigna. Los pasos intermedios son interactivos, así que
+# saltamos directo a los índices nuevos.
+func _shot_tutorial_fixes() -> void:
+	Puntajes.set_flag("tuto_b1_eco", false)
+	escena.inicio_capa.visible = false
+	escena._cargar_indice(escena.orden.find("b1_eco"))
+	await _esperar(14)
+	escena._tuto_i = 5                              # "Eso que viste es tu programa ejecutándose, paso a paso."
+	escena._tutorial_mostrar_paso()
+	await _esperar(14)
+	await _guardar("shot_tuto_ejecuto.png")        # nuevo wording + botón "▶ Ver de nuevo"
+	escena._tuto_i = 6                              # foco en la consigna del nivel
+	escena._tutorial_mostrar_paso()
+	await _esperar(14)
+	await _guardar("shot_tuto_consigna.png")       # spotlight sobre la consigna (desc_label)
+	escena._saltar_tutorial()
+	await _esperar(2)
+
+
+# Issue #1: avance ofrecido SIEMPRE al ganar, incluso pasadas las 3 veces de código-al-ganar.
+func _shot_avance() -> void:
+	for i in 3:
+		Puntajes.set_flag("cod_ganar_%d" % (i + 1), true)   # simular "ya se mostró el código 3 veces"
+	var id := "invertir_trio"
+	escena.inicio_capa.visible = false
+	escena._cargar_indice(escena.orden.find(id))
+	await _esperar(4)
+	escena.programa = Soluciones.para(id).duplicate(true)
+	escena._repintar_programa()
+	escena._reset_corrida()
+	await _esperar(2)
+	escena._on_validar_pressed()                   # gana → banner (sin código pendiente)
+	await _esperar(40)
+	await _guardar("shot_win_alto.png")            # banner de victoria en nivel alto
+	escena._ofrecer_avance_al_ganar()              # lo que dispara _descartar_banner al cerrar
+	await _esperar(40)
+	await _guardar("shot_avance.png")              # robot ofreciendo "Siguiente nivel ▸"
+	escena._cerrar_comentario()
+	await _esperar(4)
+
+
 func _shot_corrida_y_win() -> void:
 	var id := "invertir_trio"
 	escena.inicio_capa.visible = false
@@ -177,8 +221,8 @@ func _shot_corrida_y_win() -> void:
 	await _esperar(4)
 	await _guardar("shot_editor.png")
 
-	# Velocidad "lento" para leer las animaciones; capturamos a mitad de cada vuelo.
-	escena.vel_idx = 0
+	# Capturamos a mitad de cada vuelo. (El selector de velocidad ya no existe; antes
+	# acá se forzaba escena.vel_idx = 0, propiedad removida → rompía el harness.)
 	escena._reset_corrida()
 	await _esperar(2)
 	for n in 6:
@@ -225,6 +269,7 @@ func _shot_onboarding() -> void:
 	await _capturar_zona("« ENTRAN » — los números que llegan, en fila.", func(): return escena.entrada_box, "shot_onb_entran.png")
 	await _capturar_zona("« EN LA MANO » — lo que el robot tiene agarrado ahora.", func(): return escena.mano_celda, "shot_onb_mano.png")
 	await _capturar_zona("« MEMORIA » — un cajón para guardar algo y usarlo después.", func(): return escena.slots_box, "shot_onb_memoria.png")
+	await _capturar_zona("« SALEN » — lo que el robot va sacando, en orden.", func(): return escena.salida_box, "shot_onb_salen.png")
 
 
 func _capturar_zona(texto: String, getter: Callable, nombre: String) -> void:
