@@ -14,12 +14,14 @@ extends Control
 
 # Colores desde la paleta única (tema.gd). El DISEÑO no cambia, solo el color:
 # cuerpo neutro cálido + acento ámbar (antena, cachetes, luz de pecho).
-const COL_CUERPO := Tema.CELDA          # gris-arena cálido (neutro de la paleta)
-const COL_BORDE := Tema.CELDA_BORDE
-const COL_OJO := Tema.TEXTO
-const COL_ACENTO := Tema.CALIDO         # ámbar: antena, cachetes, pecho
-const COL_PANEL := Tema.PANEL
-const COL_VISOR := Color("232220")      # visor oscuro = texto de la paleta
+# `var` (no `const`): la paleta de Tema es mutable (tema claro/oscuro), así que se
+# capturan al instanciar el robot —después de Tema.aplicar()—, no en tiempo de compilación.
+var COL_CUERPO := Tema.CELDA          # gris-arena cálido (neutro de la paleta)
+var COL_BORDE := Tema.CELDA_BORDE
+var COL_OJO := Tema.TEXTO
+var COL_ACENTO := Tema.CALIDO         # ámbar: antena, cachetes, pecho
+var COL_PANEL := Tema.PANEL
+var COL_VISOR := Color("232220")      # visor oscuro (igual en ambos temas)
 
 signal presionado             # el jugador clickeó el robot (solo si es interactivo)
 

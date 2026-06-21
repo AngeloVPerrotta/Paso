@@ -72,18 +72,21 @@ var cantidad_slots := 0
 
 # --- Paleta: alias locales que apuntan a Tema (única fuente de verdad, ver tema.gd) ---
 # Identidad propia cálida: arena + verde-azulado + verde éxito + ámbar de detalle.
-const COL_FONDO := Tema.FONDO
-const COL_PANEL := Tema.PANEL
-const COL_PANEL_BORDE := Tema.PANEL_BORDE
-const COL_CELDA := Tema.CELDA
-const COL_CELDA_BORDE := Tema.CELDA_BORDE
-const COL_TEXTO := Tema.TEXTO
-const COL_TENUE := Tema.TENUE
-const COL_ACENTO := Tema.PRIMARIO         # el acento ahora es el verde-azulado
-const COL_ACENTO_TENUE := Tema.PRIMARIO_TENUE
-const COL_MANO := Tema.PRIMARIO
-const COL_OK := Tema.EXITO
-const COL_ERROR := Tema.ERROR
+# `var` (no `const`): la paleta de Tema es mutable (tema claro/oscuro). Se inicializan
+# con la paleta por defecto y se re-sincronizan en _ready con _sincronizar_colores(),
+# después de aplicar el tema guardado. Todo el dibujado lee estos campos por nombre.
+var COL_FONDO := Tema.FONDO
+var COL_PANEL := Tema.PANEL
+var COL_PANEL_BORDE := Tema.PANEL_BORDE
+var COL_CELDA := Tema.CELDA
+var COL_CELDA_BORDE := Tema.CELDA_BORDE
+var COL_TEXTO := Tema.TEXTO
+var COL_TENUE := Tema.TENUE
+var COL_ACENTO := Tema.PRIMARIO         # el acento ahora es el verde-azulado
+var COL_ACENTO_TENUE := Tema.PRIMARIO_TENUE
+var COL_MANO := Tema.PRIMARIO
+var COL_OK := Tema.EXITO
+var COL_ERROR := Tema.ERROR
 
 # --- Identidad / enlaces ---
 const VERSION := "1.0"
@@ -236,6 +239,10 @@ var _charla_id := 0                      # token: el timer solo cierra SU propia
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# Tema guardado primero: aplica la paleta y re-sincroniza los COL_ antes de
+	# que cualquier _construir_* hornee colores en los widgets.
+	Tema.aplicar(_tema_guardado())
+	_sincronizar_colores()
 	fuente_mono = SystemFont.new()
 	fuente_mono.font_names = PackedStringArray(["Cascadia Mono", "Consolas", "JetBrains Mono", "DejaVu Sans Mono", "monospace"])
 	fuente_sans = SystemFont.new()
@@ -751,34 +758,21 @@ func _construir_inicio() -> void:
 	b_git.pressed.connect(func(): git_capa.abrir())
 	v.add_child(b_git)
 
-	var esp2 := Control.new()
-	esp2.custom_minimum_size = Vector2(0, 10)
-	v.add_child(esp2)
-
-	# Pie de UX estándar: enlaces sutiles (acerca de · reportar bug · reiniciar).
-	var pie := HBoxContainer.new()
-	pie.add_theme_constant_override("separation", 8)
-	pie.alignment = BoxContainer.ALIGNMENT_CENTER
-	pie.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var l_acerca := _boton_link("Acerca de")
-	l_acerca.pressed.connect(_acerca_de)
-	pie.add_child(l_acerca)
-	pie.add_child(_etiqueta("·", 14, COL_TENUE))
-	var l_bug := _boton_link("Reportar un bug")
-	l_bug.pressed.connect(_reportar_bug)
-	pie.add_child(l_bug)
-	pie.add_child(_etiqueta("·", 14, COL_TENUE))
-	var l_reset := _boton_link("Reiniciar progreso")
-	l_reset.pressed.connect(_reiniciar_progreso)
-	pie.add_child(l_reset)
-	pie.add_child(_etiqueta("·", 14, COL_TENUE))
-	var l_sonido := _boton_link(_texto_sonido())
-	l_sonido.pressed.connect(func():
-		if sfx:
-			sfx.set_silenciado(not sfx.silenciado)
-		l_sonido.text = _texto_sonido())
-	pie.add_child(l_sonido)
-	v.add_child(pie)
+	# El pie quedó limpio: Acerca de / Reportar bug / Reiniciar / Sonido / Tema
+	# ahora viven detrás de la tuerca (esquina arriba-derecha, _abrir_config).
+	var tuerca := Tuerca.new()
+	tuerca.anchor_left = 1.0
+	tuerca.anchor_right = 1.0
+	tuerca.offset_left = -54
+	tuerca.offset_right = -14
+	tuerca.offset_top = 14
+	tuerca.offset_bottom = 54
+	tuerca.color = COL_TENUE
+	tuerca.color_hover = COL_ACENTO
+	tuerca.color_hueco = COL_FONDO
+	tuerca.tooltip_text = "Configuración"
+	tuerca.apretado.connect(_abrir_config)
+	inicio_capa.add_child(tuerca)
 
 
 # Etiqueta del toggle de sonido (pie de la pantalla de inicio). Mute = todo el audio.
@@ -938,6 +932,102 @@ func _reiniciar_progreso() -> void:
 		_mostrar_inicio())          # refresca "Continuar" (desaparece) = estado fresco
 	row.add_child(confirmar)
 	v.add_child(row)
+
+
+# ---------------------------------------------------------------------------
+# Configuración (detrás de la tuerca): agrupa Tema, Sonido y los enlaces de UX
+# (Acerca de / Reportar bug / Reiniciar). Reusa el modal estándar. Cierra con la
+# X del encabezado o tocando el velo.
+# ---------------------------------------------------------------------------
+func _abrir_config() -> void:
+	var v := _abrir_modal(420)
+	var capa: Control = v.get_meta("capa")
+
+	# Encabezado: título + X (la X cierra; tocar afuera también).
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var titulo := _etiqueta("Configuración", 22, COL_TEXTO)
+	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(titulo)
+	var x := _boton_link("✕")
+	x.add_theme_font_size_override("font_size", 18)
+	x.pressed.connect(capa.queue_free)
+	head.add_child(x)
+	v.add_child(head)
+
+	# Tema: selector segmentado (Claro / Oscuro). El activo va en acento.
+	v.add_child(_etiqueta("Tema", 13, COL_TENUE))
+	var fila_tema := HBoxContainer.new()
+	fila_tema.add_theme_constant_override("separation", 8)
+	var es_oscuro := Tema.actual() == "oscuro"
+	var b_claro := _boton_accion("Claro", not es_oscuro)
+	b_claro.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b_claro.pressed.connect(func(): _set_tema("claro"))
+	fila_tema.add_child(b_claro)
+	var b_oscuro := _boton_accion("Oscuro", es_oscuro)
+	b_oscuro.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b_oscuro.pressed.connect(func(): _set_tema("oscuro"))
+	fila_tema.add_child(b_oscuro)
+	v.add_child(fila_tema)
+
+	# Sonido: toggle (el texto refleja el estado actual).
+	var b_sonido := _boton_accion(_texto_sonido(), false)
+	b_sonido.pressed.connect(func():
+		if sfx:
+			sfx.set_silenciado(not sfx.silenciado)
+		b_sonido.text = _texto_sonido())
+	v.add_child(b_sonido)
+
+	v.add_child(_separador())
+
+	# Enlaces de UX (antes en el pie). Cierran este panel y abren su propio modal.
+	var b_acerca := _boton_accion("Acerca de", false)
+	b_acerca.pressed.connect(func():
+		capa.queue_free()
+		_acerca_de())
+	v.add_child(b_acerca)
+	var b_bug := _boton_accion("Reportar un bug", false)
+	b_bug.pressed.connect(func():
+		capa.queue_free()
+		_reportar_bug())
+	v.add_child(b_bug)
+	var b_reset := _boton_accion("Reiniciar progreso", false)
+	b_reset.pressed.connect(func():
+		capa.queue_free()
+		_reiniciar_progreso())
+	v.add_child(b_reset)
+
+
+# Tema persistido en el .cfg de Puntajes (como los otros flags). Bool por simpleza:
+# no toca la API de Puntajes (flag es bool-only). false = claro, true = oscuro.
+func _tema_guardado() -> String:
+	return "oscuro" if Puntajes.flag("tema_oscuro", false) else "claro"
+
+
+# Cambia el tema: persiste, aplica la paleta y reconstruye la escena para que TODO
+# (robot, celdas, paneles, git) tome los colores nuevos sin parchear widget por widget.
+func _set_tema(nombre: String) -> void:
+	if Tema.actual() == nombre:
+		return
+	Puntajes.set_flag("tema_oscuro", nombre == "oscuro")
+	Tema.aplicar(nombre)
+	get_tree().reload_current_scene()
+
+
+# Re-sincroniza los COL_ con la paleta activa de Tema (tras Tema.aplicar()).
+func _sincronizar_colores() -> void:
+	COL_FONDO = Tema.FONDO
+	COL_PANEL = Tema.PANEL
+	COL_PANEL_BORDE = Tema.PANEL_BORDE
+	COL_CELDA = Tema.CELDA
+	COL_CELDA_BORDE = Tema.CELDA_BORDE
+	COL_TEXTO = Tema.TEXTO
+	COL_TENUE = Tema.TENUE
+	COL_ACENTO = Tema.PRIMARIO
+	COL_ACENTO_TENUE = Tema.PRIMARIO_TENUE
+	COL_MANO = Tema.PRIMARIO
+	COL_OK = Tema.EXITO
+	COL_ERROR = Tema.ERROR
 
 
 # ---------------------------------------------------------------------------
@@ -2927,3 +3017,46 @@ class Spotlight extends Control:
 			var p := 0.5 + 0.5 * sin(_t * 4.2)
 			draw_rect(o.grow(3.0 + 4.0 * p), Color(marco.r, marco.g, marco.b, 0.22 + 0.4 * p), false, 3.0)
 		draw_rect(o, marco, false, 2.0)
+
+
+# Botón-tuerca dibujado por código (no usa imágenes): cuerpo con 8 dientes y hueco
+# central del color del fondo. Apagado en COL_TENUE, acento al pasar el mouse.
+# Vive en la esquina de la pantalla de inicio y abre la Configuración.
+class Tuerca extends Control:
+	signal apretado
+	var color := Tema.TENUE              # color en reposo
+	var color_hover := Tema.PRIMARIO     # color al pasar el mouse
+	var color_hueco := Tema.FONDO        # hueco central (= fondo donde se apoya)
+	var _hover := false
+
+	func _ready() -> void:
+		custom_minimum_size = Vector2(40, 40)
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		mouse_entered.connect(func(): _hover = true; queue_redraw())
+		mouse_exited.connect(func(): _hover = false; queue_redraw())
+
+	func _gui_input(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			apretado.emit()
+			accept_event()
+
+	func _draw() -> void:
+		var c := size / 2.0
+		var col := color_hover if _hover else color
+		var r := minf(size.x, size.y) * 0.30   # radio del cuerpo
+		var dientes := 8
+		var ang_medio := deg_to_rad(13.0)       # mitad del ancho angular del diente (base)
+		var ang_punta := deg_to_rad(8.0)         # algo más angosto en la punta (trapecio)
+		var r_punta := r * 1.42
+		for i in dientes:
+			var a := TAU * i / float(dientes)
+			var quad := PackedVector2Array([
+				c + Vector2(cos(a - ang_medio), sin(a - ang_medio)) * r,
+				c + Vector2(cos(a - ang_punta), sin(a - ang_punta)) * r_punta,
+				c + Vector2(cos(a + ang_punta), sin(a + ang_punta)) * r_punta,
+				c + Vector2(cos(a + ang_medio), sin(a + ang_medio)) * r,
+			])
+			draw_colored_polygon(quad, col)
+		draw_circle(c, r * 1.04, col)            # cuerpo (tapa las bases de los dientes)
+		draw_circle(c, r * 0.40, color_hueco)    # hueco central
