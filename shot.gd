@@ -26,6 +26,7 @@ func _initialize() -> void:
 	await _shot_inicio()
 	await _shot_git()
 	await _shot_onboarding()
+	await _shot_operaciones()
 	await _shot_sandbox()
 	await _shot_ux()
 	await _shot_como()
@@ -270,6 +271,32 @@ func _shot_onboarding() -> void:
 	await _capturar_zona("« EN LA MANO » — lo que el robot tiene agarrado ahora.", func(): return escena.mano_celda, "shot_onb_mano.png")
 	await _capturar_zona("« MEMORIA » — un cajón para guardar algo y usarlo después.", func(): return escena.slots_box, "shot_onb_memoria.png")
 	await _capturar_zona("« SALEN » — lo que el robot va sacando, en orden.", func(): return escena.salida_box, "shot_onb_salen.png")
+
+
+# Onboarding de sumá/restá (Issue #31): el primer encuentro con la operación. Capta
+# (1) el concepto con spotlight sobre la MEMORIA, (2) el paso interactivo "agarrá sumá",
+# y (3) el spotlight sobre SU desplegable, donde se elige qué memoria entra en la cuenta.
+func _shot_operaciones() -> void:
+	Puntajes.set_flag("pv_operaciones", false)
+	escena.inicio_capa.visible = false
+	escena._cargar_indice(escena.orden.find("sumar_par"))   # primer nivel con SUMAR
+	await _esperar(8)
+	escena._cerrar_tutorial()
+	escena._tuto_pasos = escena._pasos_operaciones()
+	escena._tuto_i = 0
+	escena._tuto_marca_visto = false
+	escena._tuto_mostrar_como = false
+	escena._tutorial_arrancar()
+	await _esperar(12)
+	await _guardar("shot_op_memoria.png")          # concepto + spotlight sobre la MEMORIA
+	escena._tutorial_siguiente()                    # paso 2: interactivo "agarrá sumá"
+	await _esperar(10)
+	await _guardar("shot_op_agarra.png")            # spotlight con hueco sobre el botón « sumá »
+	escena.agregar_op("SUMAR")                      # como si el jugador la agarrara → avanza al paso 3
+	await _esperar(12)
+	await _guardar("shot_op_desplegable.png")       # spotlight sobre el desplegable de memoria
+	escena._cerrar_tutorial()
+	await _esperar(2)
 
 
 func _capturar_zona(texto: String, getter: Callable, nombre: String) -> void:

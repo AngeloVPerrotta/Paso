@@ -2198,6 +2198,17 @@ func _quizas_primeras_veces() -> void:
 	# No pisar el tutorial automático: si va a arrancar (niveles 1-2 aún sin verse), esperamos.
 	if nivel_idx <= 1 and not Puntajes.flag("tuto_" + nivel.id):
 		return
+	# Operaciones (sumá/restá): la PRIMERA vez que un nivel las ofrece. Tiene PRIORIDAD
+	# sobre el onboarding de zona porque es justo el concepto que los testers no captaban:
+	# que sumar/restar operan contra una MEMORIA que hay que elegir (Issue #31). Es un
+	# flujo guiado (concepto → spotlight memoria → agarrá la op → spotlight su desplegable).
+	if not Puntajes.flag("pv_operaciones") and _ofrece_operacion():
+		_tuto_pasos = _pasos_operaciones()
+		_tuto_i = 0
+		_tuto_marca_visto = false                    # marca su propio flag pv_operaciones, no tuto_<id>
+		_tuto_mostrar_como = false
+		call_deferred("_tutorial_arrancar")
+		return
 	# Cola de zonas sin presentar. La lambda «objetivo» va SIEMPRE última (limitación del parser).
 	var pasos := []
 	if not Puntajes.flag("pv_entran") and not Puntajes.flag("tuto_b1_eco"):
@@ -2259,6 +2270,51 @@ func _pasos_tutorial(id: String) -> Array:
 		{"texto": "Esta es la consigna del nivel: lo que hay que lograr. Repetí agarrá/soltá hasta vaciar la entrada y tocá « ▶ Probar ». ¡A jugar!",
 			"objetivo": func(): return desc_label},
 	]
+
+
+# ¿Este nivel ofrece sumá o restá? (las dos operaciones que actúan contra una memoria elegida)
+func _ofrece_operacion() -> bool:
+	if nivel == null:
+		return false
+	return "SUMAR" in nivel.instrucciones_permitidas or "RESTAR" in nivel.instrucciones_permitidas
+
+
+# Onboarding de sumá/restá (Issue #31). Flujo guiado en la voz del robot, seco:
+#   1. Concepto + spotlight sobre la zona MEMORIA: la operación toma un valor de ahí.
+#   2. Interactivo: agarrá la operación (spotlight sobre su botón en INSTRUCCIONES).
+#   3. Al agarrarla, spotlight sobre SU desplegable: ahí elegís CUÁL memoria entra.
+# El paso 2/3 usa la op que el nivel ofrece (sumá si está, si no restá): el primer
+# encuentro en los órdenes que se envían es «sumar_par» (SUMAR), pero queda genérico.
+func _pasos_operaciones() -> Array:
+	var op := "SUMAR" if "SUMAR" in nivel.instrucciones_permitidas else "RESTAR"
+	var verbo: String = OP_LABEL.get(op, op)         # «sumá» / «restá»
+	var accion := "suma" if op == "SUMAR" else "resta"
+	return [
+		{"texto": "Algo nuevo: « %s ». No trabaja sola: agarra el valor de una MEMORIA y lo %s a lo que tengo en la mano." % [verbo, accion],
+			"flag": "pv_operaciones", "objetivo": func(): return slots_box},
+		{"texto": "Probá: agarrá « %s » de las instrucciones." % verbo,
+			"espera": "op:" + op, "objetivo": func(): return _boton_paleta(op)},
+		{"texto": "Ahí elegís QUÉ memoria entra en la cuenta. La operación usa ESA, no otra.",
+			"objetivo": func(): return _slot_dropdown_ultima_fila()},
+	]
+
+
+# El OptionButton de memoria de la última fila del programa (la op recién agregada).
+# Lo usa el onboarding de operaciones para apuntar el spotlight a la selección concreta.
+func _slot_dropdown_ultima_fila():
+	if filas_panel.is_empty():
+		return null
+	return _buscar_option_button(filas_panel.back())
+
+
+func _buscar_option_button(nodo: Node):
+	if nodo is OptionButton:
+		return nodo
+	for hijo in nodo.get_children():
+		var r = _buscar_option_button(hijo)
+		if r != null:
+			return r
+	return null
 
 
 # Leyenda repasable (read-only) para el botón "¿Cómo se juega?": sirve en cualquier nivel.
