@@ -1,43 +1,95 @@
 # Paso
 
-A small 2D puzzle game where you solve each level by writing tiny programs, and a robot runs them in front of you.
+Un juego de lógica 2D donde cada nivel se resuelve armando un programita, y un robot
+lo ejecuta paso a paso delante tuyo. La idea: que programar se entienda jugando.
 
-## What it is
+🎮 **Jugalo en el navegador:** https://paso.angeloperrotta.online
 
-In Paso the puzzles *are* programs. Each level gives you a goal in plain language (take these three numbers and hand them back reversed, drop the zeros, that sort of thing) and a small set of instructions to pull it off. You stack the instructions, press run, and watch the robot do exactly what you told it: grab a value, stash it in memory, hand it out. Get the right output and you've solved it. Then the actual challenge kicks in, which is solving it in fewer instructions and fewer steps.
+## Qué es
 
-I started it because of something I keep running into as a teaching assistant. Programming is hard to get into, and most of how we teach it is pretty dry. On top of that, people usually learn on a loose, forgiving language and then struggle later when they meet a strict, typed one. I wanted a game that makes the logic underneath actually click, and that you'd want to keep playing for its own sake.
+En Paso los puzzles *son* programas. Cada nivel te da un objetivo en lenguaje claro
+(agarrá estos tres números y devolvelos al revés, sacá los ceros, ese tipo de cosa) y
+un set chico de instrucciones para lograrlo. Apilás las instrucciones, le das a *Probar*
+y mirás al robot hacer exactamente lo que le dijiste: agarra un valor, lo guarda en
+memoria, lo suelta a la salida. Si lo que sale coincide con lo pedido, lo resolviste.
+Ahí arranca el verdadero desafío: resolverlo con **menos instrucciones y menos pasos**.
 
-## How it plays
+Lo empecé por algo que veo seguido como ayudante de cátedra: meterse en programación
+cuesta, y casi siempre se enseña de una forma bastante seca. Encima se suele aprender en
+un lenguaje suelto y permisivo, y después cuesta el salto a uno estricto y tipado. Quería
+un juego que haga *click* con la lógica de abajo, y que dé ganas de seguir jugando.
 
-The goal reads like a sentence, not like a spec. You only get the instructions a level needs, and the set grows as things get harder. The robot runs your program step by step and shows everything: what it's holding, what's in memory, what's coming out. Every solution gets scored on instructions used and steps run, and beating your own best score is where most of the fun lives.
+## Cómo se juega
 
-The instructions read in plain Spanish (`agarrá`, `guardá`, `soltá`, and so on), but the values have types and memory is declared the way it would be in a real language. I want to push that further and eventually show your finished solution as actual C# code, so the game leans toward typed programming instead of hiding it.
+El objetivo se lee como una oración, no como una spec. Tenés solo las instrucciones que
+el nivel necesita, y el set crece a medida que se complica. El robot corre tu programa
+paso a paso y muestra todo: qué tiene en la mano, qué hay en memoria, qué va saliendo.
+Cada solución se puntúa por instrucciones usadas y pasos corridos, y ganarle a tu propio
+récord es donde está la mayor parte de la diversión.
 
-## Status
+Las instrucciones se leen en español (`agarrá`, `guardá`, `soltá`, etc.), pero los valores
+tienen tipo y la memoria se declara como en un lenguaje real. Hay un panel **"Ver en C / C#"**
+que traduce tu solución a código comentado, para tender el puente hacia los lenguajes
+tipados (los dos tracks: C y C#). También hay un módulo **"Aprendé Git"** con una consola
+que simula el flujo real (`init → add → commit → push`) con carpetas local ↔ nube.
 
-Early but playable. There are 12 hand-built levels that walk through sequencing, memory, arithmetic, loops and conditionals, roughly in that order. The full loop is there: build a program, run it, check it, then try to make it smaller. The first couple of levels have a guided tutorial.
+## Stack
 
-Next up: the "show it in C#" view, more levels, real sound, and a daily puzzle somewhere down the line.
+- **Juego:** Godot 4.6 + GDScript, sin dependencias externas. La simulación es lógica pura
+  (`interpreter.gd`: estado → estado) y la interfaz solo dibuja snapshots. Los niveles son
+  datos (`niveles/*.json`).
+- **Landing:** [Astro](https://astro.build) + CSS propio (sin React), en `landing/`.
 
-## How I'm building it
+## Cómo correrlo (juego)
 
-I handle the design, the difficulty curve and the architecture, and I use Claude Code to write a lot of the implementation, backed by a strict test setup so nothing drifts. It's partly an experiment in building something real this way, and so far it's let me move quickly without losing the thread on the design.
+Cloná el repo, abrí la carpeta en **Godot 4.6** y dale a *Play*.
 
-One decision that's paid off: the simulation is kept fully separate from the rendering. A small pure interpreter takes state in and gives state out, the tests hit that directly, and the interface only ever draws a snapshot of it. Levels are just data files, so adding one never means touching code.
-
-## Built with
-
-Godot 4 and GDScript, no external dependencies.
-
-## Run it
-
-Clone it, open the folder in Godot 4, and hit play.
-
-```
+```bash
 git clone https://github.com/AngeloVPerrotta/Paso.git
 ```
 
-## About
+Para correr los tests headless (no necesitan ventana):
 
-I'm Angelo, a systems engineering student in Buenos Aires, building things at the crossroads of programming and education. Paso is the project I'm enjoying the most right now. It's a work in progress, so if you give it a try I'd like to hear what you think.
+```bash
+godot --headless --path . --import          # genera el caché de clases (una vez)
+godot --headless --path . --script test_paso.gd
+```
+
+Cómo exportar los builds de Windows y Web está documentado en [`BUILD.md`](BUILD.md).
+
+## Cómo correr la landing
+
+```bash
+cd landing
+npm install
+npm run dev      # http://localhost:4321
+npm run build    # genera dist/
+```
+
+## Estructura
+
+```
+paso/
+├─ interpreter.gd      # núcleo: lógica pura estado → estado (sin UI)
+├─ validador.gd        # validación y scoring por encima del intérprete
+├─ main.gd             # UI: arma el escenario y dibuja snapshots del estado
+├─ niveles/*.json      # los niveles son datos; orden.json + orden_avanzado.json
+├─ csharp.gd / c.gd    # generadores del panel "Ver en C / C#"
+├─ git_mini.gd         # modelo puro que simula git (para el módulo "Aprendé Git")
+├─ tema.gd / ui_kit.gd # paleta única y widgets compartidos
+├─ test_*.gd           # suite headless (corre sin ventana)
+└─ landing/            # sitio web (Astro)
+```
+
+## Estado
+
+Temprano pero jugable. Hay 12 niveles base hechos a mano que recorren secuencia, memoria,
+aritmética, bucles y condicionales, más o menos en ese orden, y 5 niveles avanzados en el
+track C#. El loop completo está: armar un programa, correrlo, validarlo y después tratar de
+achicarlo. Los primeros niveles tienen tutorial guiado.
+
+## Sobre mí
+
+Soy Angelo, estudiante de Ingeniería en Sistemas en Buenos Aires, construyendo cosas en el
+cruce entre programación y educación. Paso es el proyecto que más estoy disfrutando ahora
+mismo. Es un trabajo en progreso: si lo probás, me encantaría saber qué te pareció.
