@@ -50,15 +50,19 @@ func _initialize() -> void:
 
 	# Resolver el primer nivel (eco) con su solucion, via el editor, y validar.
 	assert(escena.nivel.id == "b1_eco", "deberiamos estar en eco")
-	assert(not escena.resueltos.has("b1_eco"), "no deberia estar resuelto todavia")
+	# El progreso se guarda con clave namespaced por track (c:<id> / csharp:<id>) para que
+	# ganar en un track NO marque el equivalente del otro.
+	assert(not escena.resueltos.has(escena._clave("b1_eco")), "no deberia estar resuelto todavia")
 	for op in ["TOMAR", "SOLTAR", "TOMAR", "SOLTAR", "TOMAR", "SOLTAR"]:
 		escena.agregar_op(op)
 	escena._on_validar_pressed()
-	assert(escena.resueltos.has("b1_eco"), "Validar=PASÓ deberia marcar el nivel resuelto")
+	assert(escena.resueltos.has(escena._clave("b1_eco")), "Validar=PASÓ deberia marcar el nivel resuelto")
 	assert(escena.validacion_label.text.contains("PASÓ"), "deberia mostrar PASÓ")
+	# El track C# NO debe verse afectado: el mismo id en el otro track tiene otra clave.
+	assert(not escena.resueltos.has("csharp:b1_eco"), "ganar en C no deberia marcar el nivel en C#")
 
 	# Un nivel no resuelto no esta marcado.
-	assert(not escena.resueltos.has("pares_iguales"), "pares_iguales no deberia estar resuelto")
+	assert(not escena.resueltos.has(escena._clave("pares_iguales")), "pares_iguales no deberia estar resuelto")
 
 	print("OK: el selector navega, recarga nivel/paleta y marca progreso")
 	quit()

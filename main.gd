@@ -365,6 +365,14 @@ func _boton_paleta(op: String) -> Control:
 	return null
 
 
+# Clave de progreso de un nivel, namespaced por TRACK. Los tracks C y C# comparten
+# los 12 ids base (C# = base + avanzados), así que sin el prefijo ganar un nivel en un
+# track marcaba el equivalente del otro (bug cross-track). Con "c:<id>" / "csharp:<id>"
+# el progreso queda independiente, tanto en memoria (resueltos) como en disco (Puntajes).
+func _clave(id: String) -> String:
+	return track + ":" + id
+
+
 func _repintar_cabecera() -> void:
 	if nivel == null:
 		return
@@ -374,7 +382,7 @@ func _repintar_cabecera() -> void:
 		desc_label.text = nivel.descripcion
 		meta_label.text = ""              # sin objetivo ni "tu mejor"
 		return
-	var resuelto: bool = resueltos.has(nivel.id)
+	var resuelto: bool = resueltos.has(_clave(nivel.id))
 	var marca := "   ✓" if resuelto else ""
 	titulo_label.text = "%s   ·   nivel %d/%d%s" % [nivel.nombre, nivel_idx + 1, orden.size(), marca]
 	titulo_label.add_theme_color_override("font_color", COL_OK if resuelto else COL_TEXTO)
@@ -387,7 +395,7 @@ func _repintar_meta() -> void:
 	if nivel == null:
 		return
 	var obj := "objetivo  ·  %d instrucciones · %d pasos" % [nivel.par_instrucciones, nivel.par_pasos]
-	var m = Puntajes.mejor(nivel.id)
+	var m = Puntajes.mejor(_clave(nivel.id))
 	var mejor_txt := "tu mejor  ·  —"
 	if m != null:
 		mejor_txt = "tu mejor  ·  %d instrucciones · %d pasos" % [m.instrucciones, m.pasos]
@@ -399,7 +407,7 @@ func _repintar_progreso() -> void:
 		hijo.queue_free()
 	for k in orden.size():
 		var id_k: String = orden[k]
-		var resuelto: bool = resueltos.has(id_k)
+		var resuelto: bool = resueltos.has(_clave(id_k))
 		var b := Button.new()
 		b.custom_minimum_size = Vector2(30, 28)
 		b.focus_mode = Control.FOCUS_NONE
@@ -1655,12 +1663,13 @@ func _on_validar_pressed() -> void:
 
 	var sc := "%d instrucciones · %d pasos" % [r.score.instrucciones, r.score.pasos]
 	if r.paso:
-		if not resueltos.has(nivel.id):
-			resueltos[nivel.id] = true
+		var clave := _clave(nivel.id)
+		if not resueltos.has(clave):
+			resueltos[clave] = true
 			_repintar_progreso()
 			_repintar_cabecera()
 		var es_par: bool = r.score.instrucciones <= nivel.par_instrucciones and r.score.pasos <= nivel.par_pasos
-		var es_record: bool = Puntajes.registrar(nivel.id, r.score.instrucciones, r.score.pasos)
+		var es_record: bool = Puntajes.registrar(clave, r.score.instrucciones, r.score.pasos)
 		_repintar_meta()
 		var extra := ""
 		if es_record:

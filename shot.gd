@@ -27,6 +27,7 @@ func _initialize() -> void:
 	await _shot_git()
 	await _shot_onboarding()
 	await _shot_operaciones()
+	await _shot_tracks()
 	await _shot_sandbox()
 	await _shot_ux()
 	await _shot_como()
@@ -296,6 +297,33 @@ func _shot_operaciones() -> void:
 	await _esperar(12)
 	await _guardar("shot_op_desplegable.png")       # spotlight sobre el desplegable de memoria
 	escena._cerrar_tutorial()
+	await _esperar(2)
+
+
+# Bug del progreso compartido entre tracks: ganar el nivel 1 en C NO debe marcar el
+# nivel 1 (mismo archivo) en C#. Captura el strip de progreso en cada track.
+func _shot_tracks() -> void:
+	Puntajes.borrar_todo()
+	escena.resueltos.clear()
+	escena.inicio_capa.visible = false
+	# Ganar el nivel 1 en C.
+	escena._elegir_track("c")
+	await _esperar(4)
+	escena._cargar_indice(0)                       # b1_eco
+	await _esperar(4)
+	escena.programa = Soluciones.para("b1_eco").duplicate(true)
+	escena._repintar_programa()
+	escena._reset_corrida()
+	escena._on_validar_pressed()
+	await _esperar(10)
+	await _guardar("shot_track_c_ganado.png")      # strip: nivel 1 con ✓ en C
+	# Cambiar a C#: el nivel 1 (mismo id) NO debe figurar ganado.
+	escena._elegir_track("csharp")
+	await _esperar(10)
+	await _guardar("shot_track_csharp_limpio.png") # strip: nivel 1 SIN ✓ en C#
+	# No dejamos progreso de prueba persistido en el .cfg.
+	Puntajes.borrar_todo()
+	escena.resueltos.clear()
 	await _esperar(2)
 
 
