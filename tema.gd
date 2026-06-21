@@ -33,11 +33,17 @@ static var TENUE := Color("8f897d")        # texto/íconos apagados
 static var PRIMARIO_TENUE := Color("1c7c74", 0.14)   # fondo de hover/foco sutil
 static var ERROR := Color("b5564a")        # rojo-arcilla apagado (nunca estridente)
 
-# --- Variantes claras para TEXTO sobre fondos oscuros (consola del sandbox de git) ---
-# La consola de git es SIEMPRE oscura, en cualquier tema: estas se derivan del
-# PRIMARIO/ERROR activos hacia el blanco (legibles AA sobre oscuro).
-static var PRIMARIO_CLARO := Color("82b7b3")
-static var ERROR_CLARO := Color("cf9189")
+# --- Consola de git: SIEMPRE terminal oscura, en cualquier tema. ESTABLES (const):
+# NO dependen de la paleta activa, así el swap claro↔oscuro no invierte fondo/texto
+# (bug previo: la consola usaba TEXTO como fondo y FONDO como texto, que se daban
+# vuelta en oscuro y la dejaban clara con acentos lavados). Las terminales son
+# oscuras: mantenerlas fijas es lo correcto y garantiza contraste AA. Los valores
+# son los del terminal en tema claro, así el claro queda idéntico a antes.
+const CONSOLA_FONDO := Color("232220")   # superficie oscura del terminal
+const CONSOLA_TEXTO := Color("f5f2ea")   # texto normal / salida (claro sobre el fondo)
+const CONSOLA_ECO := Color("82b7b3")     # eco del comando ($ …): teal claro
+const CONSOLA_ERROR := Color("cf9189")   # errores: rojo claro
+const CONSOLA_ACENTO := Color("e3a23a")  # info / realce: ámbar
 
 # Velo oscuro cálido para overlays modales (panel C#, confirmaciones, spotlight).
 static var VELO := Color(0.14, 0.13, 0.11, 0.5)
@@ -88,6 +94,4 @@ static func aplicar(nombre: String) -> void:
 	ERROR = Color(p.ERROR)
 	# Derivados (alpha / lerp: no expresables como literal de paleta):
 	PRIMARIO_TENUE = Color(PRIMARIO, 0.18 if n == "oscuro" else 0.14)
-	PRIMARIO_CLARO = PRIMARIO.lerp(Color.WHITE, 0.45)
-	ERROR_CLARO = ERROR.lerp(Color.WHITE, 0.35)
 	VELO = Color(0.0, 0.0, 0.0, 0.62) if n == "oscuro" else Color(0.14, 0.13, 0.11, 0.5)

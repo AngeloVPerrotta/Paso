@@ -167,7 +167,7 @@ func _construir() -> void:
 	_consola_out.add_theme_font_override("normal_font", _mono)
 	_consola_out.add_theme_font_size_override("normal_font_size", 14)
 	var out_sb := StyleBoxFlat.new()
-	out_sb.bg_color = Tema.TEXTO
+	out_sb.bg_color = Tema.CONSOLA_FONDO   # terminal SIEMPRE oscura (estable en ambos temas)
 	out_sb.set_corner_radius_all(10)
 	out_sb.set_content_margin_all(12)
 	_consola_out.add_theme_stylebox_override("normal", out_sb)
@@ -217,7 +217,7 @@ func _construir_titlebar() -> Control:
 	_robot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(_robot)
 
-	var titulo := _lbl("Consola Git — tu-proyecto", _sans, 18, Tema.PANEL)   # claro sobre el teal
+	var titulo := _lbl("Consola Git — tu-proyecto", _sans, 18, Tema.CONSOLA_TEXTO)   # claro estable sobre el teal (PANEL se oscurecía en tema oscuro)
 	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	h.add_child(titulo)
@@ -381,18 +381,19 @@ func _on_enter(texto: String) -> void:
 
 
 func _log_cmd(t: String) -> void:
-	# Eco del comando en un teal claro (buen contraste sobre el fondo oscuro).
-	_consola_out.append_text("[color=#%s]$ %s[/color]\n" % [Tema.PRIMARIO_CLARO.to_html(false), t])
+	# Eco del comando en teal claro (buen contraste sobre el fondo oscuro del terminal).
+	_consola_out.append_text("[color=#%s]$ %s[/color]\n" % [Tema.CONSOLA_ECO.to_html(false), t])
 
 
 func _log_salida(s: String, error: bool) -> void:
-	# ERROR_CLARO (no ERROR pleno) para que el feedback de error se lea bien sobre el fondo oscuro.
-	var col := Tema.ERROR_CLARO if error else Tema.FONDO
+	# Colores ESTABLES de consola: rojo claro para errores, texto claro para salida normal.
+	# (Antes usaba ERROR_CLARO / FONDO, que se invertían en tema oscuro.)
+	var col := Tema.CONSOLA_ERROR if error else Tema.CONSOLA_TEXTO
 	_consola_out.append_text("[color=#%s]%s[/color]\n" % [col.to_html(false), s])
 
 
 func _log_info(s: String) -> void:
-	_consola_out.append_text("[color=#%s]%s[/color]\n" % [Tema.CALIDO.to_html(false), s])
+	_consola_out.append_text("[color=#%s]%s[/color]\n" % [Tema.CONSOLA_ACENTO.to_html(false), s])
 
 
 # ---------------------------------------------------------------------------
