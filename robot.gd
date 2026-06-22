@@ -41,11 +41,16 @@ var _hover_amt := 0.0         # 0..1 suavizado: intensidad de la micro-reacción
 
 func _ready() -> void:
 	custom_minimum_size = Vector2(120, 120)
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Respetar `interactivo`: si `set_interactivo(true)` se llamó ANTES de entrar al
+	# árbol (el robot del juego lo hace), `_ready` corre después y NO debe pisar el
+	# STOP con IGNORE —si lo hace, el Control deja de recibir hover/_gui_input (bug #27).
+	mouse_filter = Control.MOUSE_FILTER_STOP if interactivo else Control.MOUSE_FILTER_IGNORE
 
 
-# Activa la interacción cosmética (hover + click). Solo el robot del juego la usa; los
-# demás (inicio, demo, tutor) quedan inertes. No corre lógica de juego: es presentación.
+# Activa la interacción cosmética (hover + click). La usan todos los robots visibles
+# (inicio, juego, demo, tutor): el HOVER siempre reacciona; el `presionado` lo conecta
+# quien quiera (hoy: solo el robot del juego, que suelta una frase). No corre lógica de
+# juego: es presentación pura.
 func set_interactivo(activo: bool) -> void:
 	interactivo = activo
 	mouse_filter = Control.MOUSE_FILTER_STOP if activo else Control.MOUSE_FILTER_IGNORE
@@ -109,8 +114,9 @@ func _process(delta: float) -> void:
 		_antena += delta
 	if hablando:
 		_habla += delta
-	# Hover: la intensidad sube/baja suave (entra rápido, sale suave). Mueve la antena.
-	_hover_amt = move_toward(_hover_amt, 1.0 if _hover else 0.0, delta * (6.0 if _hover else 4.0))
+	# Hover: la intensidad sube/baja suave (entra atento, sale calmo). Anima escala,
+	# ladeo de cabeza, antena y luz —todo interpolado vía _hover_amt, nunca a saltos.
+	_hover_amt = move_toward(_hover_amt, 1.0 if _hover else 0.0, delta * (6.0 if _hover else 3.0))
 	queue_redraw()
 
 
@@ -128,6 +134,18 @@ func _draw() -> void:
 	# Sombra de contacto (suave, sin sombra dura): elipse tenue que se achica al saltar.
 	var sombra_a := 0.10 * (1.0 - clampf(_salto, 0.0, 1.0) * 0.6)
 	draw_circle(Vector2(w * 0.5, h * 0.93), 24.0, Color(0.2, 0.18, 0.15, sombra_a))
+
+	# --- Hover (cosmético): el robot se agranda apenas y ladea la cabeza, atento. Se hace
+	# escalando/rotando el DIBUJO (draw_set_transform), NO el Control: así el área de hover
+	# y el layout siguen iguales (sin parpadeo de "salir de sí mismo" ni saltos en la fila).
+	# La sombra queda fuera de la transformación (vive en el piso). El pivote está en la base
+	# del cuerpo, para que "crezca hacia arriba" en vez de hundirse.
+	if _hover_amt > 0.0:
+		var hs := 1.0 + 0.07 * _hover_amt                                              # +7% de escala
+		var tilt := _hover_amt * (deg_to_rad(5.0) + deg_to_rad(1.5) * sin(_t * 2.0))   # ladeo + micro-balanceo
+		var piv := Vector2(cx, cy + 28)
+		var M := Transform2D(tilt, Vector2(hs, hs), 0.0, Vector2.ZERO)
+		draw_set_transform(piv - M * piv, tilt, Vector2(hs, hs))
 
 	# Cuerpo + cuello + cabeza se SOLAPAN y se leen como UNA pieza. Truco para el
 	# contorno sin costuras internas: primero la silueta inflada en color borde
@@ -162,13 +180,22 @@ func _draw() -> void:
 			_ojo_redondo(Vector2(cx - sep, ojo_y), 1.0 - _blink)
 			_ojo_redondo(Vector2(cx + sep, ojo_y), 1.0 - _blink)
 
+	# Hover: una chispa blanca en cada ojo (independiente del mood) — "se le iluminan".
+	if _hover_amt > 0.0:
+		var chispa := Color(1.0, 1.0, 1.0, 0.55 * _hover_amt)
+		draw_circle(Vector2(cx - sep + 1.2, ojo_y - 1.2), 1.3, chispa)
+		draw_circle(Vector2(cx + sep + 1.2, ojo_y - 1.2), 1.3, chispa)
+
 	# Cachetes coral (solo cuando está contento).
 	if mood == "feliz" or mood == "fiesta":
 		draw_circle(Vector2(cx - 18, cy - 8), 3.0, Color(COL_ACENTO.r, COL_ACENTO.g, COL_ACENTO.b, 0.5))
 		draw_circle(Vector2(cx + 18, cy - 8), 3.0, Color(COL_ACENTO.r, COL_ACENTO.g, COL_ACENTO.b, 0.5))
 
-	# Luz de pecho coral.
-	draw_circle(Vector2(cx, cy + 27), 3.5, COL_ACENTO)
+	# Luz de pecho coral (al hover late más grande y se aclara, con un halo tenue).
+	var pecho_r := 3.5 + 1.6 * _hover_amt
+	if _hover_amt > 0.0:
+		draw_circle(Vector2(cx, cy + 27), pecho_r + 3.5, Color(COL_ACENTO.r, COL_ACENTO.g, COL_ACENTO.b, 0.18 * _hover_amt))
+	draw_circle(Vector2(cx, cy + 27), pecho_r, COL_ACENTO.lerp(Color.WHITE, 0.35 * _hover_amt))
 
 	# --- Antena (desde el tope de la cabeza, dibujada al final) ---
 	var antena_base := Vector2(cx, cy - 34)
@@ -178,11 +205,11 @@ func _draw() -> void:
 	if hablando:
 		var intens := 0.35 + 0.65 * exp(-3.0 * _habla)
 		sway = sin(_habla * 21.0) * 3.4 * intens
-	# Hover (cosmético): la antena se inclina apenas y se yergue un toque, como atendiendo.
+	# Hover (cosmético): la antena se balancea claramente y se yergue, como atendiendo.
 	var lift := 0.0
 	if _hover_amt > 0.0:
-		sway += sin(_t * 6.0) * 2.4 * _hover_amt
-		lift = 2.0 * _hover_amt
+		sway += sin(_t * 5.0) * 5.0 * _hover_amt
+		lift = 3.5 * _hover_amt
 	var tip := antena_base + Vector2(sway, -13 - lift)
 	if mood == "dormido":
 		tip = antena_base + Vector2(8.0, -5.0)   # antena caída: dormido
@@ -192,9 +219,11 @@ func _draw() -> void:
 		brillo = COL_ACENTO.lerp(Color.WHITE, 0.5 + 0.5 * sin(_antena * 12.0))
 	elif mood == "dormido":
 		brillo = Color(COL_ACENTO.r, COL_ACENTO.g, COL_ACENTO.b, 0.45)   # luz tenue
+	var tip_r := (4.5 + 1.8 * _hover_amt) * late
 	if _hover_amt > 0.0:
-		brillo = brillo.lerp(Color.WHITE, 0.3 * _hover_amt)               # un brillo extra al atender
-	draw_circle(tip + Vector2(0, -2), (4.5 + 0.6 * _hover_amt) * late, brillo)
+		brillo = brillo.lerp(Color.WHITE, 0.45 * _hover_amt)             # brillo extra al atender
+		draw_circle(tip + Vector2(0, -2), tip_r + 3.0, Color(COL_ACENTO.r, COL_ACENTO.g, COL_ACENTO.b, 0.16 * _hover_amt))   # halo
+	draw_circle(tip + Vector2(0, -2), tip_r, brillo)
 
 
 # La silueta del robot (cuerpo + cuello + cabeza solapados) en un color, opcionalmente

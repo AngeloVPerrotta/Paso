@@ -717,6 +717,7 @@ func _construir_inicio() -> void:
 
 	_inicio_robot = Robot.new()
 	_inicio_robot.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_inicio_robot.set_interactivo(true)        # hover (presentación). Sin click: en inicio no hay sistema de burbujas.
 	v.add_child(_inicio_robot)
 
 	# Saludo contextual del robot (cambia según hora/día; lo setea _mostrar_inicio).
@@ -1223,6 +1224,7 @@ func _construir_como_funciona() -> void:
 	trow.add_child(titulo)
 	_demo_robot = Robot.new()
 	_demo_robot.custom_minimum_size = Vector2(96, 96)
+	_demo_robot.set_interactivo(true)          # hover (presentación). Sin click: solo acompaña la demo.
 	trow.add_child(_demo_robot)
 	v.add_child(trow)
 
@@ -2576,6 +2578,7 @@ func _robot_comenta(texto: String, animo: String, con_boton := true, accion_text
 	_tutorbot.size = Vector2(tam, tam)
 	_tutorbot.position = _tutor_origen
 	_tutorbot.set_mood(animo)
+	_tutorbot.set_interactivo(true)            # hover (presentación). El cierre lo maneja la burbuja, no el click del robot.
 
 	# Burbuja: mismo mecanismo que el tutorial/onboarding (_panel + label + botón).
 	_tutor_burbuja = _panel(COL_PANEL)

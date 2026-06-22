@@ -13,6 +13,22 @@ func _initialize() -> void:
 	# proximo frame de proceso; esperamos uno antes de mirar el estado.
 	await process_frame
 
+	# Regresion bug #27: el robot del juego DEBE quedar interactivo tras el boot real.
+	# Como `set_interactivo(true)` corre ANTES de add_child, `_ready` corre despues; si
+	# `_ready` pisara el filtro con IGNORE, el robot nunca recibiria hover/click. Aca se
+	# verifica el camino real (instanciar main.tscn) y se asegura STOP + senal conectada.
+	assert(escena.robot != null, "no se creo el robot del juego")
+	assert(escena.robot.interactivo, "el robot del juego no quedo interactivo")
+	assert(escena.robot.mouse_filter == Control.MOUSE_FILTER_STOP, "el robot no recibe mouse (filtro != STOP): bug #27")
+	assert(escena.robot.presionado.get_connections().size() > 0, "la senal presionado del robot no quedo conectada")
+
+	# Hover en TODAS las pantallas: el robot de inicio y el de la demo tambien deben quedar
+	# interactivos (mouse_filter STOP). El click solo lo conecta el robot del juego.
+	assert(escena._inicio_robot != null and escena._inicio_robot.interactivo, "el robot de inicio no quedo interactivo")
+	assert(escena._inicio_robot.mouse_filter == Control.MOUSE_FILTER_STOP, "el robot de inicio no recibe mouse (filtro != STOP)")
+	assert(escena._demo_robot != null and escena._demo_robot.interactivo, "el robot de la demo no quedo interactivo")
+	assert(escena._demo_robot.mouse_filter == Control.MOUSE_FILTER_STOP, "el robot de la demo no recibe mouse (filtro != STOP)")
+
 	# Cargar "invertir el par" via el selector (el default es el primer nivel, eco).
 	escena._cargar_indice(escena.orden.find("b2_invertir_par"))
 	assert(escena.nivel.id == "b2_invertir_par", "no se cargo el nivel por el selector")
