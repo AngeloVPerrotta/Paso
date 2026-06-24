@@ -188,8 +188,10 @@ var _tuto_mostrar_como := false         # true SOLO en la leyenda "¿Cómo se ju
 # Presentación pura. Textos cortos/rioplatenses (Angelo: cambialos si querés). Flags
 # de "primera vez" en Puntajes (vio_robot_*): "Reiniciar progreso" los borra solos.
 const TUTOR_PRIMER_PROG := "¡Buen comienzo! Apilá las órdenes y yo las hago una por una, de arriba a abajo."
-# Sub-tanda D: puente "lo que armaste = código real". %s = nombre del track (C / C#).
-const TUTOR_CODIGO_GANAR := "¡Lo resolviste! Esto que armaste, en %s real se ve así ↓  Ya es código que compila."
+# Sub-tanda D / Issue #24: puente "lo que armaste = código real". %s = nombre del track
+# (C / C#). Este es el texto BREVE (repeticiones); la versión DETALLADA —que conecta cada
+# instrucción usada con su línea de código— la arma _explica_codigo_ganar().
+const TUTOR_CODIGO_GANAR := "De nuevo: cada orden que apilaste es una línea de %s real. Fijate abajo — los comentarios dicen qué hace cada una."
 const TUTOR_PANEL_CODIGO := "Tu programa, traducido a %s real — comentado, como lo escribirías de verdad."
 var tutor_capa: Control                  # overlay propio (no se encima con tutorial_capa/spotlight)
 var _tutorbot: Robot                     # robot que se asoma (reusa robot.gd)
@@ -1238,6 +1240,12 @@ func _construir_como_funciona() -> void:
 	sub.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(sub)
 
+	# Issue #39: leyenda que conecta el vocabulario del juego con los conceptos de
+	# programación (los testers no captaban que agarrá/soltá = leer/imprimir, ni que
+	# "la mano" es una variable de trabajo). Va acá, en la pantalla de conceptos, no
+	# en el escenario de juego: explica sin amontonar la partida.
+	v.add_child(_construir_leyenda_vocab())
+
 	# Mini-escenario.
 	var card := _panel(COL_PANEL)
 	card.custom_minimum_size = Vector2(560, 0)
@@ -1295,6 +1303,56 @@ func _construir_como_funciona() -> void:
 	libre.pressed.connect(_modo_libre)
 	brow.add_child(libre)
 	v.add_child(brow)
+
+
+# Issue #39: tabla compacta vocabulario → concepto de programación. Cada término del
+# juego (cara amigable) al lado de lo que ES en código, para que un universitario de
+# sistemas lo conecte al toque (agarrá = read, soltá = print, la mano = una variable).
+# No renombra nada: la metáfora del juego queda; solo hace explícita la equivalencia.
+func _construir_leyenda_vocab() -> Control:
+	var card := _panel(COL_PANEL)
+	card.custom_minimum_size = Vector2(560, 0)
+	card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	card.add_child(v)
+
+	var head := Label.new()
+	head.text = "Qué es cada cosa, en código"
+	head.add_theme_font_override("font", fuente_sans)
+	head.add_theme_font_size_override("font_size", 15)
+	head.add_theme_color_override("font_color", COL_TEXTO)
+	v.add_child(head)
+
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 14)
+	grid.add_theme_constant_override("v_separation", 5)
+	v.add_child(grid)
+
+	# [término del juego, su concepto/equivalente en programación]
+	var filas := [
+		["agarrá", "leer un valor de la entrada (read)"],
+		["soltá", "imprimir a la salida (print)"],
+		["la mano", "una variable de trabajo: un valor a la vez"],
+		["guardá / recuperá", "escribir / leer en memoria (variables)"],
+		["sumá / restá", "operar sobre la mano (mano += / -= una memoria)"],
+		["saltá / si es cero saltá", "control de flujo: bucles y condiciones"],
+	]
+	for f in filas:
+		var term := Label.new()
+		term.text = f[0]
+		term.add_theme_font_override("font", fuente_sans)
+		term.add_theme_font_size_override("font_size", 14)
+		term.add_theme_color_override("font_color", COL_ACENTO)
+		grid.add_child(term)
+		var conc := Label.new()
+		conc.text = "→  " + f[1]
+		conc.add_theme_font_override("font", fuente_sans)
+		conc.add_theme_font_size_override("font_size", 14)
+		conc.add_theme_color_override("font_color", COL_TENUE)
+		grid.add_child(conc)
+	return card
 
 
 # Una fila del mini-escenario: etiqueta + caja de celdas. Guarda la referencia que
@@ -2283,9 +2341,9 @@ func _pasos_tutorial(id: String) -> Array:
 			"objetivo": func(): return null},
 		{"texto": "« Entran »: la fila de números que llegan, en orden. Acá entran tres y hay que sacarlos tal cual.",
 			"objetivo": func(): return entrada_box},
-		{"texto": "Probá vos: tocá « agarrá » para tomar el primero. Queda « en la mano »: lo único que sostengo, de a uno por vez.",
+		{"texto": "Probá vos: tocá « agarrá » para tomar el primero — lee un valor de la entrada, como un read. Queda « en la mano »: lo único que sostengo, de a uno por vez.",
 			"espera": "op:TOMAR", "objetivo": func(): return _boton_paleta("TOMAR")},
-		{"texto": "¡Bien! Ahora tocá « soltá »: lo que tengo en la mano pasa a « salen », la fila de resultados.",
+		{"texto": "¡Bien! Ahora tocá « soltá »: lo que tengo en la mano pasa a « salen », la fila de resultados — soltá imprime a la salida, como un print.",
 			"espera": "op:SOLTAR", "objetivo": func(): return _boton_paleta("SOLTAR")},
 		{"texto": "Ya armaste dos órdenes: ese es tu programa. Tocá « ▶ Probar » y mirame ejecutarlo.",
 			"espera": "run", "objetivo": func(): return boton_run},
@@ -2840,6 +2898,39 @@ func _marcar_cod_ganar() -> void:
 		Puntajes.set_flag("cod_ganar_%d" % (n + 1), true)
 
 
+# Issue #24 — el robot no solo MUESTRA el código al ganar: explica la relación entre lo
+# que el jugador armó (agarrá/soltá/sumá…) y las líneas de C/C#. El texto se arma a partir
+# de las instrucciones que ESTE programa usó, así habla de lo que hizo el jugador. Versión
+# detallada (1ª vez) o breve (repeticiones). Presentación pura: lee `programa`, no toca los
+# generadores (csharp.gd / c.gd) ni la lógica.
+func _explica_codigo_ganar(detallado: bool) -> String:
+	var track_n := _nombre_track()
+	if not detallado:
+		return TUTOR_CODIGO_GANAR % track_n
+	# Cara amigable → qué es en código, una línea por concepto. SALTAR/SALTAR_SI_CERO/
+	# ETIQUETA se agrupan en "control de flujo" (no repetir el mismo concepto).
+	var concepto := {
+		"TOMAR": "agarrá = leer de la entrada",
+		"SOLTAR": "soltá = imprimir a la salida",
+		"GUARDAR": "guardá = escribir en una variable",
+		"COPIAR": "recuperá = leer una variable",
+		"SUMAR": "sumá = operar sobre la mano (+=)",
+		"RESTAR": "restá = operar sobre la mano (-=)",
+		"FLUJO": "saltá / etiqueta = bucles y condiciones",
+	}
+	var vistos := []
+	var lineas := []
+	for instr in programa:
+		var clave: String = instr[0]
+		if clave in ["SALTAR", "SALTAR_SI_CERO", "ETIQUETA"]:
+			clave = "FLUJO"
+		if clave in vistos or not concepto.has(clave):
+			continue
+		vistos.append(clave)
+		lineas.append("•  " + concepto[clave])
+	return "¡Lo resolviste! Cada orden tuya es una línea de %s de verdad:\n%s\nMirá el código acá abajo: los comentarios lo explican línea por línea." % [track_n, "\n".join(lineas)]
+
+
 # Sub-tanda D — AL GANAR: tras la celebración mostramos el programa traducido a código
 # (el mismo del panel "Ver en C/C#", según el track) y el robot lo comenta a alto nivel.
 # Salteable: Seguir (queda) / Siguiente nivel (avanza). Reusa el panel y el tutor; no
@@ -2854,8 +2945,11 @@ func _mostrar_codigo_al_ganar() -> void:
 	csharp_texto.text = (Cc.generar(programa_modelo()) if track == "c" else Csharp.generar(programa_modelo()))
 	csharp_capa.visible = true
 	csharp_capa.move_to_front()
-	# El robot acompaña con el puente (sin su botón: el flujo lo dan Seguir/Siguiente nivel).
-	_robot_comenta(TUTOR_CODIGO_GANAR % _nombre_track(), "feliz", false)
+	# El robot acompaña EXPLICANDO el puente lógica↔código (sin su botón: el flujo lo dan
+	# Seguir/Siguiente nivel). Detallado la 1ª vez, breve en las repeticiones (las 3 primeras
+	# victorias). _marcar_cod_ganar() ya corrió, así que _veces_cod_ganar()==1 es la 1ª.
+	var detallado := _veces_cod_ganar() <= 1
+	_robot_comenta(_explica_codigo_ganar(detallado), "feliz", false)
 
 
 func _codigo_seguir() -> void:

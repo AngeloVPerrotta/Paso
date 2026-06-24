@@ -22,6 +22,10 @@ var COL_OJO := Tema.TEXTO
 var COL_ACENTO := Tema.CALIDO         # ámbar: antena, cachetes, pecho
 var COL_PANEL := Tema.PANEL
 var COL_VISOR := Color("232220")      # visor oscuro (igual en ambos temas)
+# Pupila SIEMPRE oscura (igual que el visor, en ambos temas). En claro coincide con
+# COL_OJO (=TEXTO); en oscuro TEXTO es claro y, sobre el blanco del ojo, la pupila se
+# perdía (la cara "desaparecía" — issue #41). Fijarla oscura la mantiene legible.
+var COL_PUPILA := Color("232220")
 
 signal presionado             # el jugador clickeó el robot (solo si es interactivo)
 
@@ -150,7 +154,15 @@ func _draw() -> void:
 	# Cuerpo + cuello + cabeza se SOLAPAN y se leen como UNA pieza. Truco para el
 	# contorno sin costuras internas: primero la silueta inflada en color borde
 	# (las 3 formas se fusionan en una sola union), encima el relleno crema.
-	_silueta(cx, cy, COL_BORDE, 2.0)
+	# Issue #41: en tema oscuro el cuerpo (CELDA #35322c) casi se funde con el fondo
+	# (#26241f). Le damos un contorno más claro y un toque más grueso SOLO en oscuro,
+	# para despegar la silueta. En claro queda idéntico (COL_BORDE, 2px).
+	var borde_col := COL_BORDE
+	var borde_inf := 2.0
+	if Tema.actual() == "oscuro":
+		borde_col = Tema.TENUE          # gris cálido claro: rim que contrasta con el fondo
+		borde_inf = 3.0
+	_silueta(cx, cy, borde_col, borde_inf)
 	_silueta(cx, cy, COL_CUERPO, 0.0)
 
 	# Visor (zona oscura para los ojos), redondeado.
@@ -167,7 +179,7 @@ func _draw() -> void:
 		"animo":
 			# Guiño: uno abierto, el otro cerrado (línea).
 			draw_circle(Vector2(cx - sep, ojo_y), 3.6, Color.WHITE)
-			draw_circle(Vector2(cx - sep, ojo_y), 2.0, COL_OJO)
+			draw_circle(Vector2(cx - sep, ojo_y), 2.0, COL_PUPILA)
 			draw_line(Vector2(cx + sep - 4, ojo_y), Vector2(cx + sep + 4, ojo_y), Color.WHITE, 2.0)
 		"pensando":
 			_ojo_redondo(Vector2(cx - sep, ojo_y), 0.5)
@@ -246,7 +258,7 @@ func _ojo_redondo(c: Vector2, abierto: float) -> void:
 	var r := 3.6
 	# Aproximamos el "entrecerrar" dibujando el ojo y tapando con el color del visor.
 	draw_circle(c, r, Color.WHITE)
-	draw_circle(c, r * 0.55, COL_OJO)
+	draw_circle(c, r * 0.55, COL_PUPILA)
 	if abierto < 1.0:
 		var tapa := r * (1.0 - abierto)
 		draw_rect(Rect2(c.x - r, c.y - r, r * 2.0, tapa), COL_VISOR)

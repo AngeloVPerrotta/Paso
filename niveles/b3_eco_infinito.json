@@ -6,7 +6,7 @@
   "instrucciones_permitidas": ["TOMAR", "SOLTAR", "SALTAR", "ETIQUETA"],
   "casos": [
     { "entrada": [1, 2, 3, 4], "salida_esperada": [1, 2, 3, 4] },
-    { "entrada": [7, 7], "salida_esperada": [7, 7] },
+    { "entrada": [5, 6], "salida_esperada": [5, 6] },
     { "entrada": [3], "salida_esperada": [3] }
   ],
   "par": { "instrucciones": 3, "pasos": 21 }

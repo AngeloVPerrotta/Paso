@@ -4,7 +4,7 @@ extends SceneTree
 # camino real de los botones (Step incluye la capa de animacion) y avanza hasta
 # terminar, asertando que el estado evoluciona igual que en el intérprete puro.
 #   godot --headless --script test_ui.gd
-# Esperado:  salida final [3, 7]  y  OK: la UI maneja el estado bien
+# Esperado:  salida final [2, 1]  y  OK: la UI maneja el estado bien
 
 func _initialize() -> void:
 	var escena = load("res://main.tscn").instantiate()
@@ -58,7 +58,7 @@ func _initialize() -> void:
 
 	print("salida final ", escena.estado.salida)
 	assert(escena.estado.terminado, "el programa no termino")
-	assert(escena.estado.salida == [3, 7], "la UI no produjo el swap esperado")
+	assert(escena.estado.salida == [2, 1], "la UI no produjo el swap esperado")
 	assert(escena.estado.mano == null, "la mano deberia quedar vacia al final")
 	assert(escena.estado_label.text.contains("TERMINADO"), "la linea de estado no marco fin")
 	assert(escena.mano_label.text == "·", "el render de la mano final esta mal")

@@ -5,7 +5,7 @@
   "slots": 0,
   "instrucciones_permitidas": ["TOMAR", "SOLTAR", "SALTAR", "SALTAR_SI_CERO", "ETIQUETA"],
   "casos": [
-    { "entrada": [7, 3, 0], "salida_esperada": [7, 3] },
+    { "entrada": [1, 2, 0], "salida_esperada": [1, 2] },
     { "entrada": [5, 0], "salida_esperada": [5] },
     { "entrada": [1, 2, 3, 0], "salida_esperada": [1, 2, 3] },
     { "entrada": [4, 5], "salida_esperada": [4, 5] }

@@ -5,7 +5,7 @@
   "slots": 1,
   "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR"],
   "casos": [
-    { "entrada": [7, 3], "salida_esperada": [3, 7] }
+    { "entrada": [1, 2], "salida_esperada": [2, 1] }
   ],
   "par": { "instrucciones": 6, "pasos": 6 }
 }

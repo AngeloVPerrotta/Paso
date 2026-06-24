@@ -6,7 +6,7 @@
   "instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR"],
   "casos": [
     { "entrada": [1, 2, 3], "salida_esperada": [3, 2, 1] },
-    { "entrada": [7, 8, 9], "salida_esperada": [9, 8, 7] }
+    { "entrada": [4, 5, 6], "salida_esperada": [6, 5, 4] }
   ],
   "par": { "instrucciones": 10, "pasos": 20 }
 }
