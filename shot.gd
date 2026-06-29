@@ -34,11 +34,12 @@ func _initialize() -> void:
 	await _shot_ux()
 	await _shot_como()
 	await _shot_tutorial()
-	await _shot_tutorial_fixes()
+	await _shot_ayuda_proactiva()
 	await _shot_corrida_y_win()
 	await _shot_avance()
 	await _shot_codigo("c", "invertir_trio", "shot_c.png")
 	await _shot_codigo("csharp", "invertir_cuarteto", "shot_csharp.png")
+	await _shot_inicio_oscuro()
 
 	print("listo: screenshots guardados en shots/")
 	quit()
@@ -147,47 +148,98 @@ func _shot_como() -> void:
 
 
 func _shot_inicio() -> void:
-	# Forzamos un "ultimo nivel" para que se vea el boton Continuar.
+	# Inicio rediseñado (#44): tarjeta con jerarquía. Capturamos los estados clave en claro.
+	# Con progreso → el botón principal dice "Continuar · nivel X".
 	Puntajes.set_ultimo("invertir_trio")
 	escena._mostrar_inicio()
-	await _esperar(8)
+	await _esperar(10)
 	await _guardar("shot_inicio.png")
+	# Jugador NUEVO (sin progreso) → el principal dice "Empezá".
+	Puntajes.set_ultimo("")
+	escena._refrescar_inicio()
+	await _esperar(6)
+	await _guardar("shot_inicio_nuevo.png")
+	# Cambiar de camino sin entrar al juego: C# queda marcado, "Estás en: C# · avanzado".
+	escena._seleccionar_track("csharp")
+	await _esperar(6)
+	await _guardar("shot_inicio_csharp.png")
+	# Restaurar estado para los próximos shots.
+	escena._seleccionar_track("c")
+	Puntajes.set_ultimo("invertir_trio")
+	await _esperar(2)
 
 
+# Inicio en tema OSCURO (#44 hereda el oscuro): re-instanciamos la escena con el flag puesto
+# (su _ready aplica la paleta oscura y reconstruye la UI), capturamos, y reseteamos el flag.
+func _shot_inicio_oscuro() -> void:
+	Puntajes.set_flag("tema_oscuro", true)
+	Puntajes.set_ultimo("invertir_trio")
+	escena.queue_free()
+	await _esperar(3)
+	escena = load("res://main.tscn").instantiate()
+	get_root().add_child(escena)
+	await _esperar(12)
+	escena._mostrar_inicio()
+	await _esperar(10)
+	await _guardar("shot_inicio_oscuro.png")
+	Puntajes.set_flag("tema_oscuro", false)   # no dejar el oscuro persistido
+
+
+# Demo del nivel 1 (#45): el robot resuelve "eco" SOLO, paso a paso, y después le pasa el
+# turno al jugador. Conducimos a mano (el token de auto-avance invalida los timers viejos,
+# así que avanzar manualmente es seguro).
 func _shot_tutorial() -> void:
 	Puntajes.set_flag("tuto_b1_eco", false)
 	escena.inicio_capa.visible = false
 	escena._cargar_indice(escena.orden.find("b1_eco"))
-	await _esperar(14)
-	await _guardar("shot_tutorial.png")            # paso intro
-	# Avanzar hasta el paso interactivo "tocá agarrá" (hueco sobre la paleta).
-	escena._tutorial_siguiente()
-	await _esperar(6)
-	escena._tutorial_siguiente()
+	await _esperar(16)                              # _quizas_tutorial → _tutorial_arrancar (deferred) → demo paso 0
+	await _guardar("shot_demo_intro.png")          # "¡Hola!… agarro el primero" + agarrá ya apilado
+	escena._tutorial_siguiente()                   # …y lo suelta
+	await _esperar(8)
+	escena._tutorial_siguiente()                   # repite → programa completo apilado
 	await _esperar(12)
-	await _guardar("shot_tutorial_agarra.png")     # spotlight con hueco interactivo
+	await _guardar("shot_demo_apila.png")          # agarrá/soltá ×3 apilado, velo tenue sobre el área
+	escena._tutorial_siguiente()                   # lo ejecuta (corrida visible)
+	await _esperar(42)                             # mitad de la corrida: un valor viajando
+	await _guardar("shot_demo_corre.png")
+	escena._detener()
+	escena._tutorial_siguiente()                   # cierre: "te dejo limpio" → vacía el programa
+	await _esperar(12)
+	escena._tutorial_siguiente()                   # práctica: "ahora te toca a vos" (foco en la paleta)
+	await _esperar(12)
+	await _guardar("shot_demo_practica.png")
 	escena._saltar_tutorial()
 	await _esperar(2)
 
 
-# Issue #2: pasos NUEVOS del tutorial nivel 1 — "tu programa ejecutándose" (con "Ver de
-# nuevo") y el FOCO final en la consigna. Los pasos intermedios son interactivos, así que
-# saltamos directo a los índices nuevos.
-func _shot_tutorial_fixes() -> void:
-	Puntajes.set_flag("tuto_b1_eco", false)
+# Ayuda proactiva: cuando el jugador parece trabado (inactividad o fallos seguidos), el robot
+# la ofrece — pulso suave del botón « Ayuda » + burbuja amable. Forzamos la situación.
+func _shot_ayuda_proactiva() -> void:
+	Puntajes.set_flag("tuto_b1_eco", true)         # sin tutorial/demo encima
+	Puntajes.set_flag("vio_robot_prog", true)      # sin la burbuja de "primer programa"
 	escena.inicio_capa.visible = false
 	escena._cargar_indice(escena.orden.find("b1_eco"))
-	await _esperar(14)
-	escena._tuto_i = 5                              # "Eso que viste es tu programa ejecutándose, paso a paso."
-	escena._tutorial_mostrar_paso()
-	await _esperar(14)
-	await _guardar("shot_tuto_ejecuto.png")        # nuevo wording + botón "▶ Ver de nuevo"
-	escena._tuto_i = 6                              # foco en la consigna del nivel
-	escena._tutorial_mostrar_paso()
-	await _esperar(14)
-	await _guardar("shot_tuto_consigna.png")       # spotlight sobre la consigna (desc_label)
-	escena._saltar_tutorial()
-	await _esperar(2)
+	await _esperar(8)
+	escena._cerrar_tutorial()
+	escena._tutor_cerrar_inmediato()
+	# Variante "varios fallos seguidos" (mensaje y guiño de ánimo).
+	escena._ayuda_ofrecida_nivel = false
+	escena._ayuda_usada = false
+	escena._fallos_seguidos = escena.FALLOS_PARA_AYUDA
+	escena._quizas_ofrecer_ayuda("animo")
+	await _esperar(40)                             # robot a la esquina + burbuja + pulso del botón
+	await _guardar("shot_ayuda_fallos.png")
+	escena._cerrar_comentario()
+	await _esperar(48)                             # el robot vuelve y _tutor_activo se libera
+	# Variante "inactividad".
+	escena._ayuda_ofrecida_nivel = false
+	escena._fallos_seguidos = 0
+	escena._restaurar_ayuda_visual()
+	escena._quizas_ofrecer_ayuda("idle")
+	await _esperar(40)
+	await _guardar("shot_ayuda_inactividad.png")
+	escena._cerrar_comentario()
+	await _esperar(4)
 
 
 # Issue #1: avance ofrecido SIEMPRE al ganar, incluso pasadas las 3 veces de código-al-ganar.
