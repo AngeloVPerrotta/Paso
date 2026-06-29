@@ -47,17 +47,6 @@ const ZONA_AYUDA := {
 	"salen": "Salen: lo que vas soltando. Para resolver, tiene que coincidir con lo pedido.",
 }
 
-# Mini-demo de la pantalla "Cómo funciona la máquina": un ejemplo de 3 instrucciones
-# que se corre solo y lento. Usa el MISMO intérprete (lógica pura) que el juego.
-const DEMO_PROG := [["TOMAR", null], ["GUARDAR", 0], ["SOLTAR", null]]
-const DEMO_IN := [3, 9]
-const DEMO_CAPS := [
-	"Esta es la máquina: una fila que ENTRA, la MANO (sostiene un valor a la vez), las MEMORIAS y lo que SALE.",
-	"El robot AGARRA el primero de la fila y lo tiene en la mano. Sostiene una sola cosa a la vez.",
-	"Lo puede GUARDAR en una memoria para usarlo más tarde (la mano lo sigue teniendo).",
-	"…o SOLTARLO a la salida. Eso es todo: agarrar, guardar, soltar. Con eso armás cualquier nivel.",
-]
-
 # --- Banco de niveles ---
 var orden: Array = []
 var nivel_idx := 0
@@ -157,21 +146,6 @@ var _corrida_auto := false               # la corrida la lanzó el botón unific
 var git_capa: GitExplica
 var git_sandbox: GitSandbox
 
-# --- "Cómo funciona la máquina" (intro demo) + modo libre ---
-var como_capa: Control
-var es_libre := false                   # modo libre: sin objetivo, solo experimentar
-var _demo_estado
-var _demo_paso_i := 0
-var _demo_b_atras: Button
-var _demo_b_sig: Button
-var _demo_paso_label: Label
-var _demo_entrada_box: HBoxContainer
-var _demo_salida_box: HBoxContainer
-var _demo_mano_celda: Panel
-var _demo_mem_celda: Panel
-var _demo_caption: Label
-var _demo_robot: Robot
-
 # --- Tutorial ---
 var tutorial_capa: Control
 var _spotlight                          # Spotlight (inner class)
@@ -183,16 +157,23 @@ var _tuto_btn_sig: Button
 var _tuto_btn_accion: Button            # botón de acción opcional por paso (p.ej. "▶ Ver de nuevo")
 var _tuto_accion_cb := Callable()       # callback del botón de acción del paso actual
 var _tuto_marca_visto := true           # true: al terminar marca el nivel como "ya visto"
-var _tuto_mostrar_como := false         # true SOLO en la leyenda "¿Cómo se juega?": ofrece "Cómo funciona"
 
-# --- Demo guiada del nivel 1 (#45): el robot RESUELVE el nivel solo, paso a paso, y
-# después deja el nivel limpio para que lo arme el jugador ("mostrar en vez de contar").
-# Son los primeros pasos del tutorial de b1_eco (auto-avanzan); el resto es la práctica
-# interactiva de siempre. Misma puerta de entrada y mismo flag tuto_b1_eco; salteable.
+# --- Demo guiada del nivel 1 (#45 + MD-01): el robot RESUELVE el nivel solo, paso a paso,
+# a RITMO DEL JUGADOR (botón "Siguiente ▶", no auto-atropella) y después deja el nivel
+# limpio para que lo arme el jugador ("mostrar en vez de contar"). Tiene controles tipo
+# reproductor (barra de progreso, atrás, repetir, saltar). Cada paso reconstruye su estado
+# (idempotente) para poder rebobinar/repetir. Misma puerta de entrada y flag tuto_b1_eco.
+const DEMO_ECO_PROG := [["TOMAR", null], ["SOLTAR", null], ["TOMAR", null], ["SOLTAR", null], ["TOMAR", null], ["SOLTAR", null]]
 var _tuto_demo_fin := 0                  # cantidad de pasos DEMO al inicio de _tuto_pasos (resto = práctica)
 var _tuto_btn_saltar: Button             # link "Saltar…" del globo (texto según demo/práctica)
 var _tuto_auto_token := 0                # token de auto-avance: invalida timers viejos al navegar/saltar
 var _cuerpo_box: HBoxContainer           # editor + escenario: el foco de la demo (se ve apilar y la máquina)
+# Controles "video" de la demo (MD-01): viven en el globo del tutorial, solo en pasos demo.
+var _tuto_demo_fila: HBoxContainer       # fila con ◀ Atrás · Paso X/N · ↺ Repetir
+var _tuto_demo_barra: ProgressBar        # barra de progreso de la demo
+var _tuto_demo_atras: Button             # ◀ rebobinar un paso
+var _tuto_demo_repetir: Button           # ↺ repetir la demo desde el principio
+var _tuto_demo_progreso: Label           # "Paso X de N"
 
 
 # --- Robot-tutor: el robot se asoma a una esquina y comenta en momentos clave ---
@@ -236,6 +217,8 @@ const CHISTES_GANAR := [
 ]
 const CHISTE_PROB := 0.5                 # prob. de soltar un comentario al ganar (cuando NO se muestra el código)
 const IDLE_SEG := 45.0                   # segundos quieto antes de que el robot cabecee
+const NOMBRE_MAX := 18                   # tope del nombre del jugador (MD-03): no romper layouts
+var _nombre := ""                        # nombre del jugador (MD-03); "" = sin nombre (textos genéricos)
 var _inicio_saludo: Label                # línea de saludo contextual en la pantalla de inicio
 var _ultimo_saludo := ""                 # para no repetir el saludo dos veces seguidas
 var _chistes_baraja: Array = []          # cola barajada de índices (rotación SIN repetir hasta agotar)
@@ -285,6 +268,7 @@ func _ready() -> void:
 
 	track = Puntajes.track()
 	orden = Niveles.orden_track(track)
+	_nombre = Puntajes.nombre()          # nombre del jugador (MD-03), si lo dio alguna vez
 	_cargar_resueltos()                  # ✓ de nivel completado: persisten entre sesiones
 	_construir_ui()
 	_construir_inicio()
@@ -351,7 +335,6 @@ func _cargar_indice(idx: int) -> void:
 		return
 	_cerrar_tutorial()
 	_tutor_cerrar_inmediato()
-	es_libre = false
 	nivel_idx = clampi(idx, 0, orden.size() - 1)
 	_cargar_nivel(orden[nivel_idx])
 	if nivel == null:
@@ -372,7 +355,10 @@ func _cargar_indice(idx: int) -> void:
 	if robot:
 		robot.set_mood("idle")
 	_quizas_tutorial()
-	_quizas_primeras_veces()
+	# El pop-up de vocabulario (una vez) tiene prioridad sobre el onboarding de zonas ese
+	# load: si se muestra, las zonas caen en el próximo nivel (no se encima nada).
+	if not _quizas_vocab_codigo():
+		_quizas_primeras_veces()
 
 
 func _on_prev() -> void:
@@ -431,12 +417,6 @@ func _clave(id: String) -> String:
 
 func _repintar_cabecera() -> void:
 	if nivel == null:
-		return
-	if es_libre:
-		titulo_label.text = "Modo libre   ·   experimentá"
-		titulo_label.add_theme_color_override("font_color", COL_ACENTO)
-		desc_label.text = nivel.descripcion
-		meta_label.text = ""              # sin objetivo ni "tu mejor"
 		return
 	var resuelto: bool = resueltos.has(_clave(nivel.id))
 	var marca := "   ✓" if resuelto else ""
@@ -598,7 +578,6 @@ func _construir_ui() -> void:
 	add_child(tutor_capa)
 
 	_construir_csharp()
-	_construir_como_funciona()
 
 	timer = Timer.new()
 	timer.wait_time = VEL_PASO
@@ -701,10 +680,12 @@ func _construir_controles() -> Control:
 	b_reset.pressed.connect(_on_reset_pressed)
 	fila.add_child(b_reset)
 
-	# Lamparita de Ayuda: recién acá aparece «Paso», para no invitar a saltear pasos sin entender.
+	# Botón Ayuda: abre un panel con el objetivo del nivel y una pista (MD-04 cablea la
+	# pista por nivel). Antes solo revelaba «Paso», que parecía un panel vacío con esa
+	# palabra (bug MD-05). El panel ofrece además la herramienta de ejecución paso a paso.
 	boton_ayuda = _boton_accion("Ayuda", false)
-	boton_ayuda.tooltip_text = "¿Trabado? Mostrá «Paso» para ejecutar de a una instrucción."
-	boton_ayuda.pressed.connect(_toggle_ayuda)
+	boton_ayuda.tooltip_text = "¿Trabado? Abrí una pista para este nivel."
+	boton_ayuda.pressed.connect(_abrir_ayuda_nivel)
 	fila.add_child(boton_ayuda)
 
 	boton_step = _boton_accion("▶ Paso", false)
@@ -830,14 +811,12 @@ func _construir_inicio() -> void:
 
 	v.add_child(card)
 
-	# Dos accesos secundarios, lado a lado, neutros con ícono dibujado por código (sin deps).
+	# Acceso secundario, neutro con ícono dibujado por código (sin deps). ("Cómo funciona"
+	# se quitó en MD-02; el repaso de piezas lo cubre el tutorial demostrativo del nivel 1.)
 	var sec := HBoxContainer.new()
 	sec.add_theme_constant_override("separation", 10)
 	sec.custom_minimum_size = Vector2(440, 0)
 	sec.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var b_como := _boton_secundario("Cómo funciona", "chip", _abrir_como_funciona)
-	b_como.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sec.add_child(b_como)
 	var b_git := _boton_secundario("Aprendé Git", "git", func(): git_capa.abrir())
 	b_git.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sec.add_child(b_git)
@@ -877,10 +856,8 @@ func _mostrar_inicio() -> void:
 	_tutor_cerrar_inmediato()
 	inicio_capa.visible = true
 	inicio_capa.move_to_front()
-	# La 1ª vez de todas, mostrale el modelo antes de tocar nada.
-	if _puede_tutorial() and not Puntajes.flag("vio_maquina"):
-		Puntajes.set_flag("vio_maquina", true)
-		_abrir_como_funciona()
+	# La 1ª vez de todas: el robot saluda y pide el nombre (sobre el inicio, antes de jugar).
+	_quizas_bienvenida()
 
 
 func _jugar() -> void:
@@ -892,6 +869,87 @@ func _continuar() -> void:
 	inicio_capa.visible = false
 	var idx := orden.find(Puntajes.ultimo_nivel())
 	_cargar_indice(idx if idx >= 0 else 0)
+
+
+# ---------------------------------------------------------------------------
+# Bienvenida (MD-03): la PRIMERA vez que se abre el juego, el robot saluda y pregunta cómo
+# querés que te llame. Es OPCIONAL (se puede saltar y jugar sin nombre). Aparece UNA vez
+# (flag bienvenida_vista; "Reiniciar progreso" lo borra y vuelve a preguntar). Va sobre el
+# inicio, antes del flujo normal/tutorial. Con nombre, algunos textos clave se personalizan
+# (saludo del inicio, aliento, felicitación); sin nombre, quedan los textos de siempre.
+# ---------------------------------------------------------------------------
+func _quizas_bienvenida() -> void:
+	if not _puede_tutorial():
+		return                                  # headless / tests: nunca
+	if Puntajes.flag("bienvenida_vista"):
+		return
+	Puntajes.set_flag("bienvenida_vista", true)
+	_abrir_bienvenida()
+
+
+func _abrir_bienvenida() -> void:
+	var v := _abrir_modal(460)
+	var capa: Control = v.get_meta("capa")
+
+	var robo := Robot.new()
+	robo.custom_minimum_size = Vector2(84, 84)
+	robo.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	robo.set_interactivo(true)                  # hover (presentación)
+	robo.set_mood("feliz")
+	v.add_child(robo)
+
+	var saludo := _etiqueta("¡Hola! Soy tu robot.", 22, COL_TEXTO)
+	saludo.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	saludo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_child(saludo)
+	var sub := _parrafo("Vamos a resolver esto juntos. ¿Cómo querés que te llame?", COL_TENUE, 420)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(sub)
+
+	var entrada := LineEdit.new()
+	entrada.placeholder_text = "Tu nombre (opcional)"
+	entrada.max_length = NOMBRE_MAX
+	entrada.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	entrada.add_theme_font_override("font", fuente_sans)
+	entrada.add_theme_font_size_override("font_size", 16)
+	entrada.custom_minimum_size = Vector2(420, 42)
+	v.add_child(entrada)
+
+	var guardar := _boton_accion("Encantado", true)
+	guardar.pressed.connect(func():
+		_guardar_nombre(entrada.text)
+		capa.queue_free())
+	v.add_child(guardar)
+	# Enter en el campo también confirma.
+	entrada.text_submitted.connect(func(_t):
+		_guardar_nombre(entrada.text)
+		capa.queue_free())
+
+	var saltar := _boton_link("Prefiero no decir")
+	saltar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	saltar.pressed.connect(capa.queue_free)
+	v.add_child(saltar)
+
+	entrada.call_deferred("grab_focus")
+
+
+# Guarda el nombre (sanitizado) y refresca el saludo del inicio si está a la vista.
+func _guardar_nombre(raw: String) -> void:
+	_nombre = _sanitizar_nombre(raw)
+	Puntajes.set_nombre(_nombre)
+	if _inicio_saludo and inicio_capa and inicio_capa.visible:
+		_inicio_saludo.text = _saludo_contextual()
+
+
+# Nombre libre: recorta a NOMBRE_MAX, saca saltos/control y colapsa espacios. Sin esto, un
+# texto largo o con saltos rompería los layouts donde el nombre se inserta.
+func _sanitizar_nombre(raw: String) -> String:
+	var s := raw.replace("\n", " ").replace("\r", " ").replace("\t", " ").strip_edges()
+	while s.contains("  "):
+		s = s.replace("  ", " ")
+	if s.length() > NOMBRE_MAX:
+		s = s.substr(0, NOMBRE_MAX).strip_edges()
+	return s
 
 
 # Rediseño del inicio (#44). Refresca lo que depende del estado: el texto del botón
@@ -1132,6 +1190,21 @@ func _abrir_config() -> void:
 		b_sonido.text = _texto_sonido())
 	v.add_child(b_sonido)
 
+	# Tu nombre (MD-03): editar/borrar. Vacío = sin nombre (vuelve a los textos genéricos).
+	v.add_child(_etiqueta("Tu nombre", 13, COL_TENUE))
+	var nombre_edit := LineEdit.new()
+	nombre_edit.text = _nombre
+	nombre_edit.placeholder_text = "Sin nombre"
+	nombre_edit.max_length = NOMBRE_MAX
+	nombre_edit.add_theme_font_override("font", fuente_sans)
+	nombre_edit.add_theme_font_size_override("font_size", 15)
+	var guardar_nombre := func():
+		_guardar_nombre(nombre_edit.text)
+		nombre_edit.text = _nombre                 # refleja el valor ya sanitizado
+	nombre_edit.text_submitted.connect(func(_t): guardar_nombre.call())
+	nombre_edit.focus_exited.connect(guardar_nombre)
+	v.add_child(nombre_edit)
+
 	v.add_child(_separador())
 
 	# Enlaces de UX (antes en el pie). Cierran este panel y abren su propio modal.
@@ -1314,122 +1387,10 @@ func _elegir_track(t: String) -> void:
 
 
 # ---------------------------------------------------------------------------
-# "Cómo funciona la máquina": intro conceptual con un mini-demo que se corre solo
-# y lento sobre un ejemplo de 3 instrucciones. Usa el intérprete puro. La idea es
-# que quien recién arranca VEA el modelo (mano / memoria / entra / sale) antes de
-# tocar nada. Accesible desde inicio y desde "¿Cómo se juega?".
+# Pop-up de vocabulario (Issue #39): la leyenda «Qué es cada cosa, en código» que vivía
+# en la pantalla "Cómo funciona la máquina" (removida en MD-02). Ahora aparece UNA vez,
+# al entrar a jugar el primer nivel sin tutorial encima — flag visto_vocab_codigo.
 # ---------------------------------------------------------------------------
-func _construir_como_funciona() -> void:
-	como_capa = Control.new()
-	como_capa.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	como_capa.mouse_filter = Control.MOUSE_FILTER_STOP
-	como_capa.visible = false
-	add_child(como_capa)
-
-	var fondo := ColorRect.new()
-	fondo.color = COL_FONDO
-	fondo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	fondo.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	como_capa.add_child(fondo)
-
-	var center := CenterContainer.new()
-	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	como_capa.add_child(center)
-
-	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 16)
-	center.add_child(v)
-
-	var trow := HBoxContainer.new()
-	trow.add_theme_constant_override("separation", 14)
-	trow.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var titulo := Label.new()
-	titulo.text = "Cómo funciona la máquina"
-	titulo.add_theme_font_override("font", fuente_sans)
-	titulo.add_theme_font_size_override("font_size", 30)
-	titulo.add_theme_color_override("font_color", COL_TEXTO)
-	titulo.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	trow.add_child(titulo)
-	_demo_robot = Robot.new()
-	_demo_robot.custom_minimum_size = Vector2(96, 96)
-	_demo_robot.set_interactivo(true)          # hover (presentación). Sin click: solo acompaña la demo.
-	trow.add_child(_demo_robot)
-	v.add_child(trow)
-
-	var sub := Label.new()
-	# Issue #5: enmarcado como REPASO opcional (la puerta de entrada es jugar el nivel 1).
-	sub.text = "Un repaso de las piezas de la máquina, por si querés volver a verlas.\nMirá al robot resolver un ejemplo chiquito, una cosa a la vez."
-	sub.add_theme_font_override("font", fuente_sans)
-	sub.add_theme_font_size_override("font_size", 16)
-	sub.add_theme_color_override("font_color", COL_TENUE)
-	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	sub.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(sub)
-
-	# Issue #39: leyenda que conecta el vocabulario del juego con los conceptos de
-	# programación (los testers no captaban que agarrá/soltá = leer/imprimir, ni que
-	# "la mano" es una variable de trabajo). Va acá, en la pantalla de conceptos, no
-	# en el escenario de juego: explica sin amontonar la partida.
-	v.add_child(_construir_leyenda_vocab())
-
-	# Mini-escenario.
-	var card := _panel(COL_PANEL)
-	card.custom_minimum_size = Vector2(560, 0)
-	card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var cv := VBoxContainer.new()
-	cv.add_theme_constant_override("separation", 10)
-	card.add_child(cv)
-	cv.add_child(_demo_fila("entran"))
-	cv.add_child(_demo_fila("en la mano"))
-	cv.add_child(_demo_fila("memoria"))
-	cv.add_child(_demo_fila("salen"))
-	v.add_child(card)
-
-	_demo_caption = Label.new()
-	_demo_caption.add_theme_font_override("font", fuente_sans)
-	_demo_caption.add_theme_font_size_override("font_size", 17)
-	_demo_caption.add_theme_color_override("font_color", COL_TEXTO)
-	_demo_caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_demo_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_demo_caption.custom_minimum_size = Vector2(560, 66)
-	_demo_caption.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	v.add_child(_demo_caption)
-
-	# Navegación a RITMO DEL JUGADOR: nada avanza por reloj; el demo pasa al tocar.
-	var nav := HBoxContainer.new()
-	nav.add_theme_constant_override("separation", 12)
-	nav.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	_demo_b_atras = _boton_accion("◀ Atrás", false)
-	_demo_b_atras.custom_minimum_size = Vector2(120, 44)
-	_demo_b_atras.pressed.connect(_demo_atras)
-	nav.add_child(_demo_b_atras)
-	_demo_paso_label = Label.new()
-	_demo_paso_label.add_theme_font_override("font", fuente_sans)
-	_demo_paso_label.add_theme_font_size_override("font_size", 14)
-	_demo_paso_label.add_theme_color_override("font_color", COL_TENUE)
-	_demo_paso_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_demo_paso_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_demo_paso_label.custom_minimum_size = Vector2(110, 0)
-	nav.add_child(_demo_paso_label)
-	_demo_b_sig = _boton_accion("Siguiente ▶", true)
-	_demo_b_sig.custom_minimum_size = Vector2(150, 44)
-	_demo_b_sig.pressed.connect(_demo_avanzar)
-	nav.add_child(_demo_b_sig)
-	v.add_child(nav)
-
-	var brow := HBoxContainer.new()
-	brow.add_theme_constant_override("separation", 10)
-	brow.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	var entendido := _boton_accion("Entendido", true)
-	entendido.custom_minimum_size = Vector2(160, 44)
-	entendido.pressed.connect(_cerrar_como_funciona)
-	brow.add_child(entendido)
-	var libre := _boton_accion("Probar en modo libre", false)
-	libre.custom_minimum_size = Vector2(200, 44)
-	libre.pressed.connect(_modo_libre)
-	brow.add_child(libre)
-	v.add_child(brow)
-
 
 # Issue #39: tabla compacta vocabulario → concepto de programación. Cada término del
 # juego (cara amigable) al lado de lo que ES en código, para que un universitario de
@@ -1481,129 +1442,52 @@ func _construir_leyenda_vocab() -> Control:
 	return card
 
 
-# Una fila del mini-escenario: etiqueta + caja de celdas. Guarda la referencia que
-# corresponda (entrada/mano/memoria/salida) para actualizarla en cada tick.
-func _demo_fila(cual: String) -> Control:
-	var fila := HBoxContainer.new()
-	fila.add_theme_constant_override("separation", 10)
-	var et := _etiqueta(cual, 13, COL_TENUE, true)
-	et.custom_minimum_size = Vector2(110, 0)
-	et.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	fila.add_child(et)
-	match cual:
-		"entran":
-			_demo_entrada_box = HBoxContainer.new()
-			_demo_entrada_box.add_theme_constant_override("separation", 8)
-			fila.add_child(_demo_entrada_box)
-		"en la mano":
-			_demo_mano_celda = _celda(COL_CELDA)
-			_demo_mano_celda.get_child(0).add_theme_color_override("font_color", COL_MANO)
-			fila.add_child(_demo_mano_celda)
-		"memoria":
-			_demo_mem_celda = _celda(COL_CELDA)
-			fila.add_child(_demo_mem_celda)
-		"salen":
-			_demo_salida_box = HBoxContainer.new()
-			_demo_salida_box.add_theme_constant_override("separation", 8)
-			fila.add_child(_demo_salida_box)
-	return fila
+# Pop-up de vocabulario: aparece UNA vez (flag visto_vocab_codigo), al entrar a jugar el
+# primer nivel sin tutorial encima. Reusa _construir_leyenda_vocab y el modal estándar.
+# Cancelable; "Reiniciar progreso" borra el flag y vuelve a aparecer.
+func _abrir_vocab_codigo() -> void:
+	var v := _abrir_modal(600)
+	var capa: Control = v.get_meta("capa")
+
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var titulo := _etiqueta("El juego, en código", 22, COL_TEXTO)
+	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(titulo)
+	var x := _boton_link("×")
+	x.add_theme_font_size_override("font_size", 18)
+	x.pressed.connect(capa.queue_free)
+	head.add_child(x)
+	v.add_child(head)
+
+	v.add_child(_parrafo("Cada pieza del juego es un concepto de programación. Mientras " \
+		+ "armás programas, esto es lo que estás haciendo de verdad:", COL_TENUE, 540))
+	v.add_child(_construir_leyenda_vocab())
+
+	var cerrar := _boton_accion("Entendido", true)
+	cerrar.pressed.connect(capa.queue_free)
+	v.add_child(cerrar)
 
 
-func _abrir_como_funciona() -> void:
-	_cerrar_tutorial()
-	_tutor_cerrar_inmediato()
-	_demo_paso_i = 0
-	_demo_mostrar(0)
-	como_capa.visible = true
-	como_capa.move_to_front()
-
-
-func _cerrar_como_funciona() -> void:
-	como_capa.visible = false
-
-
-# Avance a RITMO DEL JUGADOR (sin timer): el demo pasa al próximo momento al tocar.
-func _demo_avanzar() -> void:
-	if _demo_paso_i < DEMO_CAPS.size() - 1:
-		_demo_paso_i += 1
-		_demo_mostrar(_demo_paso_i)
-
-
-func _demo_atras() -> void:
-	if _demo_paso_i > 0:
-		_demo_paso_i -= 1
-		_demo_mostrar(_demo_paso_i)
-
-
-# Muestra el momento i re-derivando el estado desde cero (i ejecuciones del DEMO_PROG).
-# Re-derivar permite ir y volver sin que se rompa el estado visual.
-func _demo_mostrar(i: int) -> void:
-	_demo_estado = Interprete.Estado.new(DEMO_IN, 1)
-	for _k in range(i):
-		Interprete.ejecutar_paso(_demo_estado, DEMO_PROG)
-	_demo_redibujar(i)
-
-
-func _demo_redibujar(i: int) -> void:
-	_pintar_fila(_demo_entrada_box, _demo_estado.entrada, false)
-	_pintar_fila(_demo_salida_box, _demo_estado.salida, false)
-	_demo_mano_celda.get_child(0).text = _str_valor(_demo_estado.mano)
-	_demo_mem_celda.get_child(0).text = _str_valor(_demo_estado.slots[0])
-	_demo_caption.text = DEMO_CAPS[i]
-	# Estado de la navegación manual.
-	if _demo_paso_label:
-		_demo_paso_label.text = "Paso %d de %d" % [i + 1, DEMO_CAPS.size()]
-	if _demo_b_atras:
-		_demo_b_atras.disabled = i == 0
-		_demo_b_atras.modulate.a = 0.4 if i == 0 else 1.0
-	if _demo_b_sig:
-		var _ult := i >= DEMO_CAPS.size() - 1
-		_demo_b_sig.disabled = _ult
-		_demo_b_sig.modulate.a = 0.4 if _ult else 1.0
-	match i:
-		0:
-			if _demo_robot: _demo_robot.set_mood("idle")
-		1:
-			if _demo_robot: _demo_robot.set_mood("pensando")
-			_pop(_demo_mano_celda, 0.5)
-		2:
-			if _demo_robot: _demo_robot.set_mood("idle")
-			_brillo(_demo_mem_celda, 0.5)
-		3:
-			if _demo_robot: _demo_robot.set_mood("feliz")
-			_pop_ultimo(_demo_salida_box, 0.5)
-
-
-# Modo libre: un sandbox sin objetivo (todas las instrucciones, entrada de ejemplo).
-# El nivel se arma en código (no es parte del orden de juego ni de los tests).
-func _modo_libre() -> void:
-	_cerrar_como_funciona()
-	_cerrar_tutorial()
-	_cerrar_csharp()
-	if inicio_capa:
-		inicio_capa.visible = false
-	es_libre = true
-	nivel = Niveles.desde_dict({
-		"id": "libre",
-		"nombre": "Modo libre",
-		"descripcion": "Modo libre: experimentá sin objetivo. Agarrá, guardá/recuperá, sumá/restá, soltá — y corré.",
-		"slots": 2,
-		"instrucciones_permitidas": ["TOMAR", "SOLTAR", "COPIAR", "GUARDAR", "SUMAR", "RESTAR", "SALTAR", "SALTAR_SI_CERO", "ETIQUETA"],
-		"casos": [{"entrada": [3, 1, 4, 1, 5], "salida_esperada": []}],
-		"par": {"instrucciones": 0, "pasos": 0},
-	})
-	programa = []
-	programa_run = []
-	cantidad_slots = nivel.slots
-	entrada_inicial = nivel.casos[0].entrada.duplicate()
-	_repintar_paleta()
-	_repintar_programa()
-	_construir_memoria()
-	_repintar_cabecera()
-	_repintar_progreso()
-	_reset_corrida()
-	if robot:
-		robot.set_mood("idle")
+# Decide si mostrar el pop-up de vocabulario en esta carga de nivel: una sola vez, nunca
+# encima del tutorial/onboarding ni del inicio, ni durante la demo del nivel 1-2. Devuelve
+# true si lo mostró (para que el caller no encime el onboarding de zonas).
+func _quizas_vocab_codigo() -> bool:
+	if not _puede_tutorial() or nivel == null:
+		return false
+	if Puntajes.flag("visto_vocab_codigo"):
+		return false
+	if inicio_capa and inicio_capa.visible:
+		return false
+	if tutorial_capa and tutorial_capa.visible:
+		return false
+	# No pisar la demo/tutorial guiado de los primeros niveles: si va a arrancar, esperamos
+	# al próximo nivel (cuando ya no hay tutorial encima).
+	if nivel_idx <= 1 and not Puntajes.flag("tuto_" + nivel.id):
+		return false
+	Puntajes.set_flag("visto_vocab_codigo", true)
+	_abrir_vocab_codigo()
+	return true
 
 
 # ---------------------------------------------------------------------------
@@ -1834,19 +1718,96 @@ func _on_probar_pressed() -> void:
 		_correr()
 
 
-# Lamparita de Ayuda: muestra/oculta «Paso» (la ejecución paso a paso aparece cuando se busca ayuda).
-func _toggle_ayuda() -> void:
-	_ayuda_usada = true                       # el jugador buscó ayuda: no volver a ofrecérsela
-	if _ayuda_pulso and _ayuda_pulso.is_valid():
-		_ayuda_pulso.kill()
-	_ayuda_pulso = null
-	if boton_step:
-		boton_step.visible = not boton_step.visible
-		if boton_ayuda:
-			boton_ayuda.modulate = Color.WHITE   # limpia cualquier resto del pulso de ayuda proactiva
-			boton_ayuda.modulate.a = 0.6 if boton_step.visible else 1.0
+# Botón Ayuda: abre un panel modal con sentido para el nivel actual — su objetivo y una
+# pista (MD-04 cablea la pista por nivel; acá un texto orientador). Ofrece además la
+# herramienta «paso a paso». Reusa el modal estándar (_abrir_modal): abre/cierra sin tocar
+# el layout del juego. Antes el botón solo revelaba «Paso», que parecía un panel vacío con
+# esa palabra (bug MD-05).
+func _abrir_ayuda_nivel() -> void:
+	_ayuda_usada = true                       # buscó ayuda: no volver a ofrecérsela proactivamente
+	_restaurar_ayuda_visual()                 # corta el pulso del botón Ayuda
+	if nivel == null:
+		return
 	if sfx:
 		sfx.click()
+
+	var v := _abrir_modal(460)
+	var capa: Control = v.get_meta("capa")
+
+	# Encabezado: título + X (la X cierra; tocar el velo también).
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var titulo := _etiqueta("Ayuda", 22, COL_TEXTO)
+	titulo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(titulo)
+	var x := _boton_link("×")
+	x.add_theme_font_size_override("font_size", 18)
+	x.pressed.connect(capa.queue_free)
+	head.add_child(x)
+	v.add_child(head)
+
+	# Nivel y objetivo: dónde estás parado y qué hay que lograr.
+	v.add_child(_etiqueta(nivel.nombre, 16, COL_ACENTO))
+	v.add_child(_parrafo(nivel.descripcion, COL_TENUE))
+
+	v.add_child(_separador())
+
+	# Pista del nivel. MD-04 cablea la pista real por nivel; _pista_nivel da el contenido.
+	v.add_child(_parrafo(_pista_nivel(nivel.id), COL_TEXTO))
+
+	# Herramienta de ejecución: revela «Paso» para correr de a una instrucción y ver qué hace.
+	var b_paso := _boton_accion("▶ Ejecutar paso a paso", true)
+	b_paso.pressed.connect(func():
+		if boton_step:
+			boton_step.visible = true
+			if boton_ayuda:
+				boton_ayuda.modulate = Color.WHITE
+				boton_ayuda.modulate.a = 0.6
+		capa.queue_free())
+	v.add_child(b_paso)
+
+	var cerrar := _boton_accion("Entendido", false)
+	cerrar.pressed.connect(capa.queue_free)
+	v.add_child(cerrar)
+
+
+# Pista textual del nivel actual, en la voz del robot (orienta sin resolver). El CONTENIDO
+# vive en res://pistas.json (id → pista), revisado con Angelo (MD-04, COWORK). Mientras ese
+# archivo no exista o no tenga el id, cae a un texto orientador genérico (placeholder). El
+# token {nombre} (MD-03) se reemplaza por el nombre del jugador, o se quita sin romper la
+# frase si no hay nombre.
+func _pista_nivel(id: String) -> String:
+	var p: String = str(_pistas_data().get(id, ""))
+	if p == "":
+		p = "Mirá el objetivo de arriba y fijate qué piezas de « Instrucciones » te " \
+			+ "acercan. Si no estás seguro de qué hace una orden, tocá « Ejecutar paso a " \
+			+ "paso » y mirá cómo se mueve el valor por la máquina."
+	if p.contains("{nombre}"):
+		if _nombre != "":
+			p = p.replace("{nombre}", _nombre)
+		else:
+			p = p.replace(", {nombre}", "").replace("{nombre}", "")
+	return p
+
+
+# Diccionario de pistas por nivel, cargado UNA vez desde res://pistas.json (id → pista). Es
+# DATA aparte (no toca niveles/*.json): lo más limpio para revisar/editar las pistas en
+# bloque. Si el archivo no está (todavía no aprobado), devuelve {} y _pista_nivel usa el
+# placeholder.
+var _pistas_cache := {}
+var _pistas_cargadas := false
+func _pistas_data() -> Dictionary:
+	if not _pistas_cargadas:
+		_pistas_cargadas = true
+		var ruta := "res://pistas.json"
+		if FileAccess.file_exists(ruta):
+			var f := FileAccess.open(ruta, FileAccess.READ)
+			if f:
+				var d = JSON.parse_string(f.get_as_text())
+				f.close()
+				if typeof(d) == TYPE_DICTIONARY:
+					_pistas_cache = d
+	return _pistas_cache
 
 
 func _on_reset_pressed() -> void:
@@ -1855,10 +1816,6 @@ func _on_reset_pressed() -> void:
 
 func _on_validar_pressed() -> void:
 	if nivel == null:
-		return
-	if es_libre:
-		validacion_label.text = "Modo libre: no hay objetivo. Probá lo que quieras y mirá la máquina."
-		validacion_label.add_theme_color_override("font_color", COL_TENUE)
 		return
 	var r := Validador.validar(nivel, programa)
 	if r.motivo != "":
@@ -2388,7 +2345,6 @@ func _quizas_tutorial() -> void:
 	_tuto_pasos = _pasos_tutorial(nivel.id)
 	_tuto_i = 0
 	_tuto_marca_visto = true                     # primera vez: al terminar, marcar visto
-	_tuto_mostrar_como = false                   # el tutorial ES la puerta de entrada; no ofrece el repaso
 	call_deferred("_tutorial_arrancar")
 
 
@@ -2403,7 +2359,6 @@ func _abrir_ayuda() -> void:
 	_tuto_pasos = _pasos_legenda()
 	_tuto_i = 0
 	_tuto_marca_visto = false
-	_tuto_mostrar_como = true                     # repaso: acá SÍ ofrecemos "Cómo funciona la máquina"
 	call_deferred("_tutorial_arrancar")
 
 
@@ -2431,7 +2386,6 @@ func _quizas_primeras_veces() -> void:
 		_tuto_pasos = _pasos_operaciones()
 		_tuto_i = 0
 		_tuto_marca_visto = false                    # marca su propio flag pv_operaciones, no tuto_<id>
-		_tuto_mostrar_como = false
 		call_deferred("_tutorial_arrancar")
 		return
 	# Cola de zonas sin presentar. La lambda «objetivo» va SIEMPRE última (limitación del parser).
@@ -2455,7 +2409,6 @@ func _quizas_primeras_veces() -> void:
 	_tuto_pasos = [pasos[0]]
 	_tuto_i = 0
 	_tuto_marca_visto = false                    # no marca tuto_<id>; cada paso marca su propio flag pv_*
-	_tuto_mostrar_como = false                   # onboarding 1-zona: sin "Cómo funciona" (evita amontonar)
 	call_deferred("_tutorial_arrancar")
 
 
@@ -2492,31 +2445,43 @@ func _pasos_tutorial(id: String) -> Array:
 	return practica
 
 
-# Demo del nivel 1 (#45): pasos que AUTO-AVANZAN (el jugador mira). El robot apila la
-# solución de "eco" a la vista, la corre, y al final deja el nivel limpio para que la
-# arme el jugador. Cada paso lleva "demo": true (lo distingue de la práctica) y enfoca
-# TODO el área de juego (_cuerpo_box) con un velo tenue: se ve apilar Y la máquina moverse.
-# `hacer` se dispara al mostrar el paso; el avance llega con "pausa" (timer) o "run" (al
-# terminar la corrida). Salteable con el link "Saltar demo" → te lleva directo a la práctica.
+# Demo del nivel 1 (#45 + MD-01): el robot resuelve "eco" a la vista, a RITMO DEL JUGADOR
+# (cada paso avanza con "Siguiente ▶", NO por reloj). Cada paso lleva "demo": true (lo
+# distingue de la práctica), un "mood" del robot y un "hacer" que reconstruye el estado
+# de ESE paso (idempotente): así se puede rebobinar/repetir sin que el estado se rompa. El
+# foco es TODO el área de juego (_cuerpo_box) con velo tenue: se ve apilar Y la máquina
+# moverse. Nubes de texto breves, una por acción. Salteable con "Saltar demo" → práctica.
 func _pasos_demo_eco() -> Array:
 	return [
-		{"texto": "¡Hola! Soy tu robot. Mirá: resuelvo este nivel una vez y después te toca a vos. Agarro el primero de la fila…",
-			"demo": true, "pausa": 1.3, "hacer": Callable(self, "agregar_op").bind("TOMAR"), "objetivo": func(): return _cuerpo_box},
-		{"texto": "…y lo suelto a la salida. Eso es un «eco»: lo que entra, sale igual.",
-			"demo": true, "pausa": 1.4, "hacer": Callable(self, "agregar_op").bind("SOLTAR"), "objetivo": func(): return _cuerpo_box},
-		{"texto": "Y repito para cada número que va entrando.",
-			"demo": true, "pausa": 1.4, "hacer": Callable(self, "_demo_eco_resto"), "objetivo": func(): return _cuerpo_box},
-		{"texto": "Ahora lo ejecuto. Seguí el viaje: de la fila, a la mano, y a la salida.",
-			"demo": true, "espera": "run", "hacer": Callable(self, "_correr"), "objetivo": func(): return _cuerpo_box},
-		{"texto": "¿Viste? Salió igual a lo que entró. Te dejo el nivel limpio: ahora lo armás vos.",
-			"demo": true, "pausa": 1.7, "hacer": Callable(self, "_demo_limpiar"), "objetivo": func(): return _cuerpo_box},
+		{"texto": "¡Hola! Te muestro cómo se juega: lo resuelvo una vez y después va por tu cuenta. Apilo « agarrá »: toma el primero de la fila.",
+			"demo": true, "mood": "pensando", "hacer": Callable(self, "_demo_set_programa").bind([["TOMAR", null]]), "objetivo": func(): return _cuerpo_box},
+		{"texto": "Apilo « soltá »: lo manda a la salida. Eso es un «eco».",
+			"demo": true, "mood": "pensando", "hacer": Callable(self, "_demo_set_programa").bind([["TOMAR", null], ["SOLTAR", null]]), "objetivo": func(): return _cuerpo_box},
+		{"texto": "Repito agarrá/soltá para cada número que entra.",
+			"demo": true, "mood": "idle", "hacer": Callable(self, "_demo_set_programa").bind(DEMO_ECO_PROG), "objetivo": func(): return _cuerpo_box},
+		{"texto": "Lo ejecuto. Seguí el viaje: fila → mano → salida.",
+			"demo": true, "mood": "pensando", "hacer": Callable(self, "_demo_correr"), "objetivo": func(): return _cuerpo_box},
+		{"texto": "Salió igual a lo que entró. Te lo dejo limpio: ahora lo armás vos.",
+			"demo": true, "mood": "feliz", "hacer": Callable(self, "_demo_limpiar"), "objetivo": func(): return _cuerpo_box},
 	]
 
 
-# Completa la solución de "eco" en la demo (ya hay agarrá+soltá): repite para los otros dos.
-func _demo_eco_resto() -> void:
-	for op in ["TOMAR", "SOLTAR", "TOMAR", "SOLTAR"]:
-		agregar_op(op)
+# Pone el programa de la demo en un estado concreto (idempotente) y deja la máquina lista
+# para mirar (reconstruye el estado inicial, sin correr). Permite rebobinar/repetir la demo
+# saltando a cualquier paso sin que quede inconsistente (MD-01).
+func _demo_set_programa(prog: Array) -> void:
+	_detener()
+	programa = prog.duplicate(true)
+	_repintar_programa()
+	_reset_corrida()
+	if sfx and not prog.is_empty():
+		sfx.colocar()
+
+
+# Paso "ejecuto" de la demo: asegura el programa completo y corre la animación (sin validar).
+func _demo_correr() -> void:
+	_demo_set_programa(DEMO_ECO_PROG)
+	_correr()
 
 
 # Deja el nivel como recién cargado (programa vacío) sin tocar el flag del tutorial: lo usa
@@ -2641,6 +2606,42 @@ func _tutorial_arrancar() -> void:
 	_tuto_txt.custom_minimum_size = Vector2(356, 0)
 	gv.add_child(_tuto_txt)
 
+	# Controles "video" de la demo (MD-01): barra de progreso + ◀ Atrás · Paso X/N · ↺ Repetir.
+	# Solo visibles en pasos de demo; _tutorial_mostrar_paso los muestra/oculta y actualiza.
+	_tuto_demo_barra = ProgressBar.new()
+	_tuto_demo_barra.show_percentage = false
+	_tuto_demo_barra.custom_minimum_size = Vector2(356, 6)
+	var barra_bg := StyleBoxFlat.new()
+	barra_bg.bg_color = COL_PANEL_BORDE
+	barra_bg.set_corner_radius_all(3)
+	var barra_fill := StyleBoxFlat.new()
+	barra_fill.bg_color = COL_ACENTO
+	barra_fill.set_corner_radius_all(3)
+	_tuto_demo_barra.add_theme_stylebox_override("background", barra_bg)
+	_tuto_demo_barra.add_theme_stylebox_override("fill", barra_fill)
+	_tuto_demo_barra.visible = false
+	gv.add_child(_tuto_demo_barra)
+
+	_tuto_demo_fila = HBoxContainer.new()
+	_tuto_demo_fila.add_theme_constant_override("separation", 8)
+	_tuto_demo_fila.visible = false
+	_tuto_demo_atras = _boton_link("◀ Atrás")
+	_tuto_demo_atras.pressed.connect(_demo_atras_nav)
+	_tuto_demo_fila.add_child(_tuto_demo_atras)
+	var dsp1 := Control.new()
+	dsp1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tuto_demo_fila.add_child(dsp1)
+	_tuto_demo_progreso = _etiqueta("", 13, COL_TENUE)
+	_tuto_demo_progreso.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_tuto_demo_fila.add_child(_tuto_demo_progreso)
+	var dsp2 := Control.new()
+	dsp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tuto_demo_fila.add_child(dsp2)
+	_tuto_demo_repetir = _boton_link("↺ Repetir")
+	_tuto_demo_repetir.pressed.connect(_demo_repetir)
+	_tuto_demo_fila.add_child(_tuto_demo_repetir)
+	gv.add_child(_tuto_demo_fila)
+
 	var fila := HBoxContainer.new()
 	fila.add_theme_constant_override("separation", 8)
 	# Link tenue (no botón sólido): no compite con el botón objetivo resaltado. El texto lo
@@ -2660,13 +2661,6 @@ func _tutorial_arrancar() -> void:
 	_tuto_btn_sig.pressed.connect(_tutorial_siguiente)
 	fila.add_child(_tuto_btn_sig)
 	gv.add_child(fila)
-
-	# Solo en la leyenda repasable "¿Cómo se juega?": acceso al repaso conceptual. (El onboarding
-	# de zonas y el tutorial guiado NO lo muestran, para no amontonar — Issue #5.)
-	if _tuto_mostrar_como:
-		var b_maq := _boton_accion("Cómo funciona la máquina ▸", false)
-		b_maq.pressed.connect(_abrir_como_funciona)   # _abrir_como_funciona cierra el tutorial
-		gv.add_child(b_maq)
 
 	_tuto_globo = globo
 	tutorial_capa.add_child(globo)
@@ -2695,13 +2689,31 @@ func _tutorial_mostrar_paso() -> void:
 	var es_demo: bool = paso.get("demo", false)
 	var pausa: float = paso.get("pausa", 0.0)
 
+	var en_demo: bool = es_demo and _tuto_demo_fin > 0
 	if _tuto_txt:
 		_tuto_txt.text = paso.texto
 	if _tuto_btn_sig:
-		# El botón avanza solo en pasos de TEXTO puro. Interactivos (espera) y de DEMO (pausa)
-		# avanzan solos: ocultamos "Siguiente" para no invitar a clickear.
-		_tuto_btn_sig.visible = (espera == "" and pausa <= 0.0)
-		_tuto_btn_sig.text = "¡Dale! ✓" if _tuto_i == _tuto_pasos.size() - 1 else "Siguiente ▸"
+		# DEMO (MD-01): avanza a RITMO DEL JUGADOR con "Siguiente ▶" (no atropella). Pasos de
+		# TEXTO puro: también con botón. Interactivos (espera): se oculta para no invitar a clickear.
+		if en_demo:
+			_tuto_btn_sig.visible = true
+			_tuto_btn_sig.text = "Siguiente ▶"
+		else:
+			_tuto_btn_sig.visible = (espera == "" and pausa <= 0.0)
+			_tuto_btn_sig.text = "¡Dale! ✓" if _tuto_i == _tuto_pasos.size() - 1 else "Siguiente ▸"
+	# Controles "video" de la demo: visibles solo en pasos de demo. Barra + Paso X/N + ◀ Atrás.
+	if _tuto_demo_barra:
+		_tuto_demo_barra.visible = en_demo
+		if en_demo:
+			_tuto_demo_barra.max_value = _tuto_demo_fin
+			_tuto_demo_barra.value = _tuto_i + 1
+	if _tuto_demo_fila:
+		_tuto_demo_fila.visible = en_demo
+	if en_demo and _tuto_demo_progreso:
+		_tuto_demo_progreso.text = "Paso %d de %d" % [_tuto_i + 1, _tuto_demo_fin]
+	if _tuto_demo_atras:
+		_tuto_demo_atras.disabled = _tuto_i == 0
+		_tuto_demo_atras.modulate.a = 0.4 if _tuto_i == 0 else 1.0
 	# Link de saltar: durante la demo ofrece "Saltar demo" (te lleva a la práctica, sin cerrar
 	# el tutorial); en la práctica, el "Saltar tutorial"/"Cerrar" de siempre.
 	if _tuto_btn_saltar:
@@ -2721,10 +2733,15 @@ func _tutorial_mostrar_paso() -> void:
 			_tuto_btn_accion.visible = false
 
 	# Acción del paso de DEMO: el robot apila/corre/limpia por su cuenta ("mostrar en vez de
-	# contar"). Se dispara al mostrar el paso; el avance llega después (pausa o "run").
+	# contar"). Se dispara al mostrar el paso; en la demo el avance es MANUAL (Siguiente ▶).
 	var hacer: Callable = paso.get("hacer", Callable())
 	if hacer.is_valid():
 		hacer.call()
+	# Humor del robot por paso (la demo se siente "viva"). Va después del hacer para que no lo
+	# pise (p.ej. _correr deja "pensando"); si el paso no fija mood, se respeta el actual.
+	var mood: String = paso.get("mood", "")
+	if mood != "" and robot:
+		robot.set_mood(mood)
 
 	# Apuntar el spotlight al objetivo (o sin foco si null/rect sin resolver).
 	var objetivo_node = paso.objetivo.call()
@@ -2773,9 +2790,10 @@ func _tutorial_mostrar_paso() -> void:
 		pos.y = clampf(pos.y, 20, maxf(20, size.y - gs.y - 20))
 		globo.position = pos
 
-	# Auto-avance de la DEMO (#45): tras la pausa pasa solo al próximo paso. El token evita
-	# que un timer viejo (tras saltar/navegar) dispare un avance fantasma sobre otro paso.
-	if pausa > 0.0:
+	# Auto-avance por "pausa" (timer): pasos NO-demo que lo pidan. La demo NO auto-avanza
+	# (MD-01: el jugador marca el ritmo con "Siguiente ▶"). El token evita que un timer viejo
+	# (tras saltar/navegar) dispare un avance fantasma sobre otro paso.
+	if pausa > 0.0 and not es_demo:
 		get_tree().create_timer(pausa).timeout.connect(func():
 			if tok == _tuto_auto_token and tutorial_capa and tutorial_capa.visible:
 				_tutorial_siguiente())
@@ -2783,6 +2801,25 @@ func _tutorial_mostrar_paso() -> void:
 
 func _tutorial_siguiente() -> void:
 	_tuto_i += 1
+	if sfx:
+		sfx.click()
+	_tutorial_mostrar_paso()
+
+
+# Control "◀ Atrás" de la demo (MD-01): rebobina un paso. Cada paso reconstruye su estado,
+# así volver no rompe nada. Deshabilitado en el primer paso.
+func _demo_atras_nav() -> void:
+	if _tuto_i <= 0:
+		return
+	_tuto_i -= 1
+	if sfx:
+		sfx.click()
+	_tutorial_mostrar_paso()
+
+
+# Control "↺ Repetir" de la demo (MD-01): vuelve al primer paso y la deja correr de nuevo.
+func _demo_repetir() -> void:
+	_tuto_i = 0
 	if sfx:
 		sfx.click()
 	_tutorial_mostrar_paso()
@@ -2813,6 +2850,11 @@ func _cerrar_tutorial() -> void:
 	_tuto_txt = null
 	_tuto_btn_sig = null
 	_tuto_btn_saltar = null
+	_tuto_demo_fila = null
+	_tuto_demo_barra = null
+	_tuto_demo_atras = null
+	_tuto_demo_repetir = null
+	_tuto_demo_progreso = null
 	_tuto_pasos = []
 	_tuto_demo_fin = 0
 
@@ -2831,8 +2873,6 @@ func _tutor_libre() -> bool:
 	if tutorial_capa and tutorial_capa.visible:
 		return false                              # tutorial / onboarding hablando
 	if inicio_capa and inicio_capa.visible:
-		return false
-	if como_capa and como_capa.visible:
 		return false
 	if escenario_col == null or escenario_col.get_global_rect().size == Vector2.ZERO:
 		return false                              # sin layout todavía (boot)
@@ -3011,10 +3051,10 @@ func _quizas_comentario_primer_programa() -> void:
 # amable. Reusa la burbuja del tutor y el guard _tutor_libre. No insiste si ya usó la Ayuda.
 # ---------------------------------------------------------------------------
 
-# ¿Tiene sentido contar "inactividad" ahora? No en modo libre, corriendo, durante el
-# tutorial/onboarding, con el robot ya hablando, ni si ya ofrecí/usó la ayuda.
+# ¿Tiene sentido contar "inactividad" ahora? No corriendo, durante el tutorial/onboarding,
+# con el robot ya hablando, ni si ya ofrecí/usó la ayuda.
 func _trabado_apto() -> bool:
-	if es_libre or corriendo or _ayuda_ofrecida_nivel or _ayuda_usada:
+	if corriendo or _ayuda_ofrecida_nivel or _ayuda_usada:
 		return false
 	if _tutor_activo:
 		return false
@@ -3033,7 +3073,7 @@ func _registrar_fallo() -> void:
 # Ofrece la Ayuda (si corresponde): una sola vez por nivel, nunca si ya la usó, y solo con
 # la pantalla libre (mismo guard que el resto del robot-tutor). Pulsa el botón y comenta.
 func _quizas_ofrecer_ayuda(animo := "idle") -> void:
-	if _ayuda_ofrecida_nivel or _ayuda_usada or es_libre:
+	if _ayuda_ofrecida_nivel or _ayuda_usada:
 		return
 	if not _tutor_libre():
 		return
@@ -3043,10 +3083,12 @@ func _quizas_ofrecer_ayuda(animo := "idle") -> void:
 
 
 # Mensaje cálido y seco, nunca condescendiente. Apunta al botón Ayuda (que además pulsa).
+# Con nombre (MD-03) se personaliza; sin nombre, los textos quedan idénticos a los de antes.
 func _mensaje_ayuda() -> String:
+	var voc := ", %s" % _nombre if _nombre != "" else ""
 	if _fallos_seguidos >= FALLOS_PARA_AYUDA:
-		return "Tranqui, a todos nos pasa. Si querés una mano, abajo tenés « Ayuda »."
-	return "¿Lo estás pensando? Si te trabás, abajo tenés « Ayuda » para ir paso a paso."
+		return "Tranqui%s, a todos nos pasa. Si querés una mano, abajo tenés « Ayuda »." % voc
+	return "¿Lo estás pensando%s? Si te trabás, abajo tenés « Ayuda » para ir paso a paso." % voc
 
 
 # Pulso suave del botón Ayuda: un brillo cálido que late unas pocas veces y vuelve a la
@@ -3064,8 +3106,8 @@ func _pulsar_ayuda() -> void:
 		_ayuda_pulso.tween_property(boton_ayuda, "modulate", Color.WHITE, 0.55).set_trans(Tween.TRANS_SINE)
 
 
-# Detiene el pulso y deja el botón Ayuda en su modulate de reposo (respeta el atenuado que
-# usa _toggle_ayuda cuando «Paso» está visible). Se llama al cambiar de nivel o usar la ayuda.
+# Detiene el pulso y deja el botón Ayuda en su modulate de reposo (atenuado cuando «Paso»
+# ya está visible). Se llama al cambiar de nivel o al abrir la ayuda.
 func _restaurar_ayuda_visual() -> void:
 	if _ayuda_pulso and _ayuda_pulso.is_valid():
 		_ayuda_pulso.kill()
@@ -3091,7 +3133,11 @@ func _saludo_contextual() -> String:
 		pool.append_array(SALUDOS_TARDE)
 	else:
 		pool.append_array(SALUDOS_NOCHE)
-	pool.append_array(SALUDOS_GENERICOS)
+	# Con nombre (MD-03), el saludo genérico se personaliza; sin nombre quedan los de siempre.
+	if _nombre != "":
+		pool.append_array(["De vuelta, %s." % _nombre, "Listo cuando vos, %s." % _nombre])
+	else:
+		pool.append_array(SALUDOS_GENERICOS)
 	var opciones := pool.filter(func(s): return s != _ultimo_saludo)
 	if opciones.is_empty():
 		opciones = pool
@@ -3165,7 +3211,7 @@ func _charla_random() -> String:
 # comentario ocasional. (El código-al-ganar mantiene su propio "Siguiente nivel" en el footer.)
 func _ofrecer_avance_al_ganar() -> void:
 	if nivel_idx < orden.size() - 1:
-		var txt := "¡Listo! ¿Vamos al que sigue?"
+		var txt := ("¡Listo, %s! ¿Vamos al que sigue?" % _nombre) if _nombre != "" else "¡Listo! ¿Vamos al que sigue?"
 		if randf() < CHISTE_PROB:
 			var c := _chiste_random()
 			if c != "":
@@ -3403,6 +3449,19 @@ func _etiqueta(texto: String, tam: int, color: Color, espaciada := false) -> Lab
 	l.text = texto.to_upper() if espaciada else texto
 	l.add_theme_font_override("font", fuente_sans)
 	l.add_theme_font_size_override("font_size", tam)
+	l.add_theme_color_override("font_color", color)
+	return l
+
+
+# Párrafo de texto largo (auto-wrap) con la fuente sans del juego. Reusado por los
+# paneles modales (ayuda, vocabulario, bienvenida). `ancho` fija el ancho de envoltura.
+func _parrafo(texto: String, color: Color, ancho := 420) -> Label:
+	var l := Label.new()
+	l.text = texto
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(ancho, 0)
+	l.add_theme_font_override("font", fuente_sans)
+	l.add_theme_font_size_override("font_size", 15)
 	l.add_theme_color_override("font_color", color)
 	return l
 

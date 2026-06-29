@@ -84,6 +84,18 @@ static func set_ultimo(id: String) -> void:
 	cfg.save(RUTA)
 
 
+# --- Nombre del jugador (opcional; MD-03). "" = no dio nombre (textos genéricos). ---
+static func nombre() -> String:
+	var cfg := _cargar()
+	return str(cfg.get_value(SEC_FLAGS, "nombre", ""))
+
+
+static func set_nombre(n: String) -> void:
+	var cfg := _cargar()
+	cfg.set_value(SEC_FLAGS, "nombre", n)
+	cfg.save(RUTA)
+
+
 # --- Track elegido: "c" (fundamentos) | "csharp" (avanzado). Default "c". ---
 static func track() -> String:
 	var cfg := _cargar()
@@ -99,7 +111,7 @@ static func set_track(t: String) -> void:
 
 # --- Reiniciar progreso ---
 # Borra TODO lo persistido (mejores puntajes + flags de "primera vez" como
-# vio_maquina/tuto_<id> + último nivel). Como todo vive en este único archivo,
+# visto_vocab_codigo/tuto_<id> + último nivel). Como todo vive en este único archivo,
 # alcanza con eliminarlo: el juego queda como recién instalado.
 static func borrar_todo() -> void:
 	if FileAccess.file_exists(RUTA):

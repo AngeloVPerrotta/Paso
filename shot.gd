@@ -16,8 +16,6 @@ var escena
 
 func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(DIR)
-	# Evitar que el auto-abrir de "Cómo funciona" tape la captura del inicio.
-	Puntajes.set_flag("vio_maquina", true)
 	escena = load("res://main.tscn").instantiate()
 	get_root().add_child(escena)
 	await process_frame
@@ -32,7 +30,6 @@ func _initialize() -> void:
 	await _shot_persistencia()
 	await _shot_sandbox()
 	await _shot_ux()
-	await _shot_como()
 	await _shot_tutorial()
 	await _shot_ayuda_proactiva()
 	await _shot_corrida_y_win()
@@ -130,21 +127,6 @@ func _cerrar_modal_top() -> void:
 	var n = escena.get_child_count()
 	if n > 0 and escena.get_child(n - 1) is Control:
 		escena.get_child(n - 1).queue_free()
-
-
-# Pantalla "Cómo funciona la máquina" en el paso "guardá" (valor en memoria).
-func _shot_como() -> void:
-	escena._abrir_como_funciona()                 # paso 1 de 4
-	await _esperar(4)
-	escena._demo_avanzar()                         # agarrá
-	escena._demo_avanzar()                         # guardá (valor en mano + memoria)
-	await _esperar(10)
-	await _guardar("shot_como.png")                # con el botón "Siguiente ▶" de avance manual
-	escena._demo_avanzar()                         # soltá (último paso: "Siguiente" se deshabilita)
-	await _esperar(10)
-	await _guardar("shot_como_fin.png")
-	escena._cerrar_como_funciona()
-	await _esperar(2)
 
 
 func _shot_inicio() -> void:
@@ -340,7 +322,6 @@ func _shot_operaciones() -> void:
 	escena._tuto_pasos = escena._pasos_operaciones()
 	escena._tuto_i = 0
 	escena._tuto_marca_visto = false
-	escena._tuto_mostrar_como = false
 	escena._tutorial_arrancar()
 	await _esperar(12)
 	await _guardar("shot_op_memoria.png")          # concepto + spotlight sobre la MEMORIA

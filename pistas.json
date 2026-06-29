@@ -1,0 +1,19 @@
+{
+  "b1_eco": "Es un eco: nada cambia. Por cada número hay una sola idea — agarrarlo y soltarlo— y la repetís hasta vaciar la fila.",
+  "b2_invertir_par": "Para dar vuelta dos valores, uno tiene que esperar mientras sale el otro. ¿Donde podes dejar guardado el primero hasta que le toque?",
+  "duplicar": "Al soltar, la mano queda vacía. Si querés volver a soltar el mismo número, necesitás tener una copia guardada para recuperarla.",
+  "invertir_trio": "Es el par, pero con uno mas. El truco es el mismo: guardar para invertir. Lo nuevo aca es el orden en que los traes de vuelta — pensalo bien.",
+  "sumar_par": "Sumá trabaja sobre lo que tenés en la mano, usando una memoria. Guardá el primero, agarrá el segundo y recién ahí sumá. Fijate qué memoria elegís en la cuenta.",
+  "restar_par": "El orden importa: A − B no es lo mismo que B − A. Pensá cuál tenés que tener en la mano al momento de restar, y cuál guardado.",
+  "b3_eco_infinito": "No sabés cuántos vienen, así que no podés escribir un par por cada uno. Marcá un punto con una etiqueta al principio y volvé ahí con saltá: eso es repetir. Cuando la fila se vacía, el programa frena solo.",
+  "duplicar_cola": "Es \"Duplicar\" pero para una cola entera: meté esa idea adentro de un loop. En cada vuelta, sacá el valor dos veces antes de volver al principio.",
+  "sumar_pares": "Cada vuelta del loop resuelve un par y vuelve a empezar. ¿Que tres cosas haces con cada par antes de volver al principio?",
+  "b4_filtrar_ceros": "Dentro del loop, mirá cada valor: con \"si es cero saltá a\" podés esquivar el soltar cuando es cero, y soltarlo cuando no lo es.",
+  "cortar_en_cero": "Parecido a filtrar, pero el cero no se esquiva: corta todo. Si es cero, en vez de volver al principio, saltá hacia el FINAL (fuera del loop).",
+  "pares_iguales": "Dos valores son iguales cuando su resta da cero. Restá uno del otro y usá \"si es cero saltá a\" para decidir entre soltar o descartar. Ojo: restar te pisa la mano, así que guardá una copia antes.",
+  "sumar_trio": "Tres sumandos no entran en una sola cuenta. Vas a tener que ir acumulando: suma uno, despues el otro, sobre la misma memoria.",
+  "restar_trio": "Se hace de a una resta por vez, siempre sobre la mano. El orden manda: arrancá con a en la mano y restale los otros dos, uno después del otro.",
+  "invertir_cuarteto": "Como invertir el trío, con uno más. Guardá los que entran y traelos de vuelta al revés. Con cuatro, contá cuántas memorias te hacen falta.",
+  "filtrar_duplicar": "Aca se juntan dos decisiones que ya conoces: si es cero, no va; si pasa, va dos veces.",
+  "pares_iguales_doble": "Es \"Pares iguales\", pero cuando son iguales soltás el valor DOS veces en vez de una. La decisión (iguales o no) se sigue tomando con la resta y \"si es cero saltá a\"."
+}
